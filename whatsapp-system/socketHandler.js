@@ -1,0 +1,1506 @@
+// socketHandler.js - المعالج والمتحكم الرئيسي لجميع أحداث الدردشة والنزالات والـ Sockets والـ ChatOps
+const fs = require('fs').promises;
+const path = require('path');
+const crypto = require('crypto');
+const partners = require('./partners');
+
+// استيراد دالة تطهير النصوص العربية من ملف الأدوات المستقل
+const { normalizeArabic } = require('./utils/normalizeArabic');
+
+// استيراد الدوال الأمنية ومصفوفات الحماية المشتركة من موديول المساعدين
+const { hashPasscode, escapeHtml, containsBadWord, checkSpam, formatAsteriskToBold } = require('./utils/helpers');
+
+// ========== مسارات قاعدة البيانات وصور الأفاتار ==========
+const DB_FILE = path.join(__dirname, 'database.db'); // تعريف المتغير لتلافي خطأ ReferenceError بوضع المطور
+const AVATARS_DIR = path.join(__dirname, 'public', 'avatars');
+
+// أرقام وحسابات الملاك والمشرفين المحمية من القيود
+const PROTECTED_NUMBERS = ["أيهم", "أدمن", "مشرف"];
+
+// مسارات وتواقيت أحداث السيرفر المشتركة بالذاكرة العشوائية للسوكت
+const connectedSockets = {};
+const pendingChallenges = {};
+const typingUsers = new Set();
+const chatHistory = []; // مصفوفة الذاكرة العشوائية الموحدة للشات
+let systemLogs = [];
+let activeGame = null;
+let activeGameTimer = null;
+let activeBet = null;
+
+// متغيرات تتبع حالات الـ ChatOps والتحقق والرموز الإدارية والمساعد بقلب السيرفر
+let isVerificationActive = false; // هل لوحة التحقق من المطور مفتوحة حالياً بالجروب
+let developerMode = false; // هل السيرفر نشط حالياً بوضع حديث المطور والمساعد الخاص (DevMode)
+let authenticatedDeveloperSocketId = null; // السوكيت الحصري الخاص بالمطور والمدير أيهم بعد نجاح التحقق
+const mutedPlayers = new Set(); // قائمة اللاعبين المشاغبين المحظورين والمكتومين من الشات بعد 3 محاولات فاشلة
+const votedPlayers = new Set(); // قائمة اللاعبين المشاركين في تصويت غياب المطور حالياً
+let devAbsentVotesCount = 0; // عداد أصوات تأكيد غياب المطور لفك الحظر
+let isAssistantCommandBlocked = false; // هل تم حظر وقفل أمر الاستدعاء مؤقتاً لـ 60 ثانية بعد تجاوز التصويت
+
+// بنوك أسئلة الفعاليات المدمجة والمفروزة لغايات الـ Sockets
+const challengeBanks = {
+    "أنمي": [
+        { q: "من هو بطل أنمي ون بيس؟", a: "لوفي" },
+        { q: "ما اسم سيف زورو الأسود الذي استبدله؟", a: "شوسوي" },
+        { q: "من هو صانع العقار المقلص APTX-4869 في كونان؟", a: "هايبارا" },
+        { q: "ما اسم والد غون في أنمي هنتر x هنتر؟", a: "جين" }
+    ],
+    "رياضيات": [
+        { q: "ما ناتج المعادلة الحسابية: 5 + 5 * 2؟", a: "15" },
+        { q: "ما هو الجذر التربيعي للرقم 64؟", a: "8" },
+        { q: "ما قيمة العملية الحسابية: 3 أس 3؟", a: "27" }
+    ],
+    "دينية": [
+        { q: "من هو أول الأنبياء على وجه الأرض؟", a: "آدم" },
+        { q: "ما هي أطول سورة في القرآن الكريم؟", a: "البقرة" },
+        { q: "ما هي قبلة المسلمين الأولى قبل تحويلها للكعبة؟", a: "القدس" }
+    ],
+    "سرعة": [
+        { q: "اكتب الكلمة التالية بسرعة بدون أخطاء: أسطورة", a: "أسطورة" },
+        { q: "اكتب الكلمة التالية بسرعة بدون أخطاء: سرعة", a: "سرعة" }
+    ],
+    "جغرافيا": [
+        { q: "ما هي عاصمة دولة اليابان؟", a: "طوكيو" },
+        { q: "ما هي عاصمة جمهورية مصر العربية؟", a: "القاهرة" },
+        { q: "ما هو أطول نهر في العالم؟", a: "النيل" }
+    ],
+    "ثقافة": [
+        { q: "ما هو أسرع كائن حي بري في العالم؟", a: "الفهد" },
+        { q: "ما هي عاصمة دولة فرنسا؟", a: "باريس" }
+    ],
+    "فنون": [
+        { q: "من هو الرسام الإيطالي الشهير الذي رسم لوحة الموناليزا؟", a: "دا فينشي" }
+    ],
+    "ألغاز": [
+        { q: "ما هو الشيء الذي ينبض دائماً ولكن بلا قلب？", a: "الساعة" },
+        { q: "ما هو الشيء الذي تراه في الليل 3 مرات وفي النهار مرة واحدة؟", a: "حرف اللام" }
+    ]
+};
+
+// ترقية الألقاب والرتب العسكرية
+const RANKS = [
+    { name: '🆕 عابر مستجد', minPoints: 0, bonus: 0 },
+    { name: '🗡️ مقاتل نشط', minPoints: 100, bonus: 0 },
+    { name: '🛡️ كاسر النخبة', minPoints: 300, bonus: 0 },
+    { name: '🏅 جنرال مهيب', minPoints: 500, bonus: 2 },
+    { name: '👑 إمبراطور الحرب', minPoints: 1000, bonus: 3 },
+    { name: '🌌 أسطورة سرمدية', minPoints: 2000, bonus: 5 }
+];
+
+function getRank(points) {
+    let rank = RANKS[0];
+    for (const r of RANKS) {
+        if (points >= r.minPoints) rank = r;
+    }
+    return rank;
+}
+
+module.exports = function(io, db, dbMethods) {
+    const { dbRun, dbGet, dbAll } = dbMethods;
+
+    // استعادة آخر 50 رسالة دردشة من SQLite عند تشغيل السيرفر لضمان المزامنة الصامتة ومنع ضياع الشات نهائياً عند الإغلاق
+    dbAll(`SELECT * FROM chat_messages ORDER BY id DESC LIMIT 50`, []).then(savedMessages => {
+        chatHistory.length = 0; // تنظيف الذاكرة لملئها
+        savedMessages.reverse().forEach(m => {
+            chatHistory.push({
+                sender: m.sender,
+                text: m.text,
+                isSystem: m.is_system === 1,
+                timestamp: m.timestamp
+            });
+        });
+        console.log(`[Database] تم استعادة وتحميل ${chatHistory.length} رسالة شات سابقة بنجاح من SQLite إلى موديول السوكت الموحد.`);
+    }).catch(err => {
+        console.error("Error loading chat messages on startup in socket module:", err);
+    });
+
+    // ========== دوال الخدمات المأمنة والمنحوتة بـ Scope السوكت الموحد كلياً ==========
+
+    async function getUser(userId, createIfNotExist = false) {
+        const id = userId.toLowerCase().trim().replace(/^@/, '');
+        let row = await dbGet(`SELECT * FROM users WHERE id = ?`, [id]);
+        
+        if (!row) {
+            if (!createIfNotExist) return null;
+            const defaultPartners = {
+                buggy: { owned: false, skill1_uses: 0, skill2_unlocked: false, skill3_unlocked: false, skill4_unlocked: false },
+                drstone: { owned: false, skill1_uses: 0, skill2_unlocked: false },
+                gojo: { owned: false },
+                light: { owned: false },
+                l: { owned: false }
+            };
+            const defaultDebts = [];
+            
+            await dbRun(`
+                INSERT INTO users (id, passcode_hash, points, warnings, correct_answers, total_attempts, debts, partners)
+                VALUES (?, NULL, 0, 0, 0, 0, ?, ?)
+            `, [id, JSON.stringify(defaultDebts), JSON.stringify(defaultPartners)]);
+            
+            row = await dbGet(`SELECT * FROM users WHERE id = ?`, [id]);
+        }
+        
+        row.debts = JSON.parse(row.debts || '[]');
+        row.partners = JSON.parse(row.partners || '{}');
+        row.banned = !!row.banned;
+        
+        return row;
+    }
+
+    async function updateUser(userId, updates) {
+        const id = userId.toLowerCase().trim().replace(/^@/, '');
+        await getUser(id, false);
+
+        const fieldsToUpdate = [];
+        const params = [];
+
+        for (const [key, val] of Object.entries(updates)) {
+            let dbVal = val;
+            let dbKey = key;
+            
+            if (key === 'correctAnswers') dbKey = 'correct_answers';
+            if (key === 'totalAttempts') dbKey = 'total_attempts';
+            if (key === 'challengeWins') dbKey = 'challenge_wins';
+            if (key === 'nameChangesCount') dbKey = 'name_changes_count';
+            if (key === 'lastNameChangeDate') dbKey = 'last_name_change_date';
+            if (key === 'passcodeHash') dbKey = 'passcode_hash';
+            if (key === 'lastWin') dbKey = 'last_win'; // ربط حقل lastWin بـ last_win لتفادي أخطاء SQLite SQLITE_ERROR تماماً
+            
+            if (dbKey === 'debts' || dbKey === 'partners') {
+                dbVal = JSON.stringify(val);
+            } else if (dbKey === 'banned') {
+                dbVal = val ? 1 : 0;
+            }
+
+            fieldsToUpdate.push(`${dbKey} = ?`);
+            params.push(dbVal);
+        }
+
+        if (fieldsToUpdate.length > 0) {
+            params.push(id);
+            await dbRun(`UPDATE users SET ${fieldsToUpdate.join(', ')} WHERE id = ?`, params);
+        }
+
+        return getUser(id, false);
+    }
+
+    async function addDebt(debtorId, creditorId, amount) {
+        const debtor = await getUser(debtorId, false);
+        if (!debtor) return;
+        const existing = debtor.debts.find(d => d.creditor === creditorId.toLowerCase().trim());
+        if (existing) {
+            existing.amount += amount;
+            existing.originalAmount = (existing.originalAmount || existing.amount) + amount;
+        } else {
+            debtor.debts.push({ creditor: creditorId.toLowerCase().trim(), amount, originalAmount: amount });
+        }
+        await updateUser(debtorId, { debts: debtor.debts });
+    }
+
+    async function clearDebt(debtorId, creditorId) {
+        const debtor = await getUser(debtorId, false);
+        if (!debtor || !debtor.debts) return false;
+        const before = debtor.debts.length;
+        debtor.debts = debtor.debts.filter(d => d.creditor !== creditorId.toLowerCase().trim());
+        const after = debtor.debts.length;
+        if (before !== after) {
+            await updateUser(debtorId, { debts: debtor.debts });
+            return true;
+        }
+        return false;
+    }
+
+    async function syncPlayerUI(username) {
+        const id = username.toLowerCase().trim().replace(/^@/, '');
+        const socketId = connectedSockets[id];
+        if (socketId) {
+            const userObj = await getUser(id, false);
+            if (userObj) {
+                io.to(socketId).emit('playerUpdate', {
+                    points: userObj.points,
+                    warnings: userObj.warnings,
+                    avatar: userObj.avatar,
+                    partners: userObj.partners
+                });
+            }
+        }
+    }
+
+    async function addPoints(userId, points) {
+        const id = userId.toLowerCase().trim().replace(/^@/, '');
+        const user = await getUser(id, false);
+        if (!user) return null;
+        
+        const rank = getRank(user.points);
+        const totalPoints = points + rank.bonus;
+
+        let remainingForUser = totalPoints;
+        if (user.debts && user.debts.length > 0) {
+            const deduct = Math.ceil(totalPoints * 0.5);
+            let toDeduct = deduct;
+            while (toDeduct > 0 && user.debts.length > 0) {
+                const debt = user.debts[0];
+                const deduction = Math.min(toDeduct, debt.amount);
+                
+                debt.amount -= deduction;
+                toDeduct -= deduction;
+
+                const creditor = await getUser(debt.creditor, false);
+                if (creditor) {
+                    await updateUser(debt.creditor, { points: creditor.points + deduction });
+                    await syncPlayerUI(debt.creditor);
+                }
+
+                sendPrivateNotification(id, `💸 تم استقطاع ${deduction} نقطة من جائزتك الحالية لسداد دينك لـ ${debt.creditor}`);
+                sendPrivateNotification(debt.creditor, `💰 تم إيداع ${deduction} نقطة في حسابك سداداً للدين المستحق على ${id}`);
+
+                if (debt.amount <= 0.01) {
+                    user.debts.shift();
+                }
+            }
+            remainingForUser = totalPoints - (deduct - toDeduct);
+        }
+
+        const updated = await updateUser(id, {
+            points: user.points + remainingForUser,
+            debts: user.debts
+        });
+        
+        await syncPlayerUI(id);
+        return {
+            ...updated,
+            pointsAdded: totalPoints,
+            bonusFromRank: rank.bonus,
+            rank: getRank(updated.points)
+        };
+    }
+
+    function logSystemAction(text) {
+        const time = new Date().toLocaleTimeString('ar-SA');
+        systemLogs.push({ time, text });
+        if (systemLogs.length > 100) systemLogs.shift();
+        io.emit('logUpdate', systemLogs);
+    }
+
+    function broadcastSystemMessage(text) {
+        const chatMsg = { 
+            sender: "النظام", 
+            text, 
+            isSystem: true, 
+            timestamp: new Date().toLocaleTimeString('ar-SA') 
+        };
+        chatMsg.text = formatAsteriskToBold(chatMsg.text);
+        chatHistory.push(chatMsg);
+        if (chatHistory.length > 50) chatHistory.shift();
+        io.emit('chatMessage', chatMsg);
+
+        dbRun(`INSERT INTO chat_messages (sender, text, is_system, timestamp) VALUES (?, ?, 1, ?)`, [
+            "النظام", text, chatMsg.timestamp
+        ]).then(() => {
+            dbRun(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 100)`).catch(() => {});
+        }).catch(err => console.error("Error saving system message to SQLite:", err));
+    }
+
+    function sendPrivateNotification(userId, text) {
+        const id = userId.toLowerCase().trim().replace(/^@/, '');
+        const socketId = connectedSockets[id];
+        if (socketId) {
+            io.to(socketId).emit('privateNotification', { text });
+        }
+    }
+
+    async function startChallenge(challengerId, opponentId, category) {
+        const questions = challengeBanks[category] || challengeBanks["أنمي"];
+        const question = questions[Math.floor(Math.random() * questions.length)];
+        
+        await dbRun(`INSERT OR REPLACE INTO active_challenges (user_id, opponent_id, question_q, question_a, answering_locked) VALUES (?, ?, ?, ?, 0)`, [
+            challengerId, opponentId, question.q, question.a
+        ]);
+        await dbRun(`INSERT OR REPLACE INTO active_challenges (user_id, opponent_id, question_q, question_a, answering_locked) VALUES (?, ?, ?, ?, 0)`, [
+            opponentId, challengerId, question.q, question.a
+        ]);
+        
+        await dbRun(`INSERT INTO questions_history (question, timestamp) VALUES (?, ?)`, [question.q, Date.now()]);
+        
+        // [مطور ومحدّث] في حال تفعيل فئة "السرعة الخاطفة"، نقوم ببث تفعيل العداد البصري لـ 10 ثوانٍ للخصمين فوراً
+        if (category === 'سرعة') {
+            io.emit('startSpeedChallengeTimer');
+
+            // [مصحح أمنياً ومنطقياً] إنشاء مؤقت برمجائي صارم وحقيقي على السيرفر لإنهاء تحدي السرعة ورفض الإجابات بعد 10 ثوانٍ
+            setTimeout(async () => {
+                const challengeExists = await dbGet(`SELECT * FROM active_challenges WHERE user_id = ? AND answering_locked = 0`, [challengerId]);
+                if (challengeExists) {
+                    // قفل الجولة برمجياً بـ SQLite ومسح النزال كلياً للطرفين حماية للملفات
+                    await dbRun(`UPDATE active_challenges SET answering_locked = 1 WHERE user_id = ? OR opponent_id = ?`, [challengerId, challengerId]);
+                    await dbRun(`DELETE FROM active_challenges WHERE user_id = ? OR opponent_id = ?`, [challengerId, challengerId]);
+                    
+                    io.to(connectedSockets[challengerId]).emit('stopSpeedChallengeTimer');
+                    io.to(connectedSockets[opponentId]).emit('stopSpeedChallengeTimer');
+                    
+                    broadcastSystemMessage(`⏱️ *انتهى الوقت!* لم يتمكن أي من المتنافسين @${challengerId} و @${opponentId} من حل تحدي السرعة الخاطف خلال الـ 10 ثوانٍ المحددة كلياً.`);
+                    io.emit('statsUpdate');
+                }
+            }, 10000);
+        } else {
+            broadcastSystemMessage(`⚔️ *انطلق التحدي المباشر بين @${challengerId} و @${opponentId}!*\n📋 الفئة: ${category}\n❓ السؤال هو:\n*${question.q}*\n⏱️ أسرع إجابة صحيحة تفوز بـ 10 نقاط!`);
+        }
+    }
+
+    async function startBet(challengerId, opponentId, amount, category) {
+        const questions = challengeBanks[category] || challengeBanks["أنمي"];
+        const question = questions[Math.floor(Math.random() * questions.length)];
+        
+        const challenger = await getUser(challengerId, false);
+        const opponent = await getUser(opponentId, false);
+        
+        if (!challenger || !opponent || challenger.points < amount || opponent.points < amount) {
+            broadcastSystemMessage("🚫 تم إلغاء الرهان لعدم كفاية نقاط أحد الطرفين.");
+            return;
+        }
+        
+        await updateUser(challengerId, { points: challenger.points - amount });
+        await updateUser(opponentId, { points: opponent.points - amount });
+        await syncPlayerUI(challengerId);
+        await syncPlayerUI(opponentId);
+        
+        await dbRun(`INSERT INTO questions_history (question, timestamp) VALUES (?, ?)`, [question.q, Date.now()]);
+        await dbRun(`INSERT OR REPLACE INTO active_bets (challenger_id, opponent_id, pool, question_q, question_a, answering_locked) VALUES (?, ?, ?, ?, ?, 0)`, [
+            challengerId, opponentId, amount * 2, question.q, question.a
+        ]);
+
+        activeBet = {
+            challenger: challengerId,
+            opponent: opponentId,
+            pool: amount * 2,
+            question,
+            answeringLocked: false,
+            timer: setTimeout(async () => {
+                const betExists = await dbGet(`SELECT * FROM active_bets WHERE challenger_id = ?`, [challengerId]);
+                if (betExists && betExists.answering_locked === 0) {
+                    await dbRun(`UPDATE active_bets SET answering_locked = 1 WHERE challenger_id = ?`, [challengerId]);
+                    await addPoints(challengerId, amount);
+                    await addPoints(opponentId, amount);
+                    await dbRun(`DELETE FROM active_bets WHERE challenger_id = ?`, [challengerId]);
+                    broadcastSystemMessage(`⏰ انتهت مهلة الرهان دون إجابة صحيحة. تم رد المبالغ المراهن عليها للطرفين.`);
+                    activeBet = null;
+                    io.emit('statsUpdate');
+                }
+            }, 30000)
+        };
+        
+        broadcastSystemMessage(`💰 *بدأ الرهان المالي بقيمة ${amount} نقطة (المجموع الكلي للربح: ${amount * 2} نقطة) بين @${challengerId} و @${opponentId}!*\n📋 الفئة: ${category}\n❓ السؤال هو:\n*${question.q}*\n⏱️ المهلة: 30 ثانية للأسرع بالإجابة!`);
+    }
+
+    async function sendManualEvent(category) {
+        if (activeGame) {
+            broadcastSystemMessage("⚠️ هناك فعالية جارية بالفعل حالياً بساحة اللعب.");
+            return;
+        }
+        const questions = challengeBanks[category];
+        if (!questions || questions.length === 0) return;
+        const question = questions[Math.floor(Math.random() * questions.length)];
+        
+        await dbRun(`INSERT INTO questions_history (question, timestamp) VALUES (?, ?)`, [question.q, Date.now()]);
+
+        activeGame = {
+            type: 'standard',
+            category: category,
+            q: question.q,
+            a: question.a,
+            points: 15,
+            participants: [],
+            answeringLocked: false
+        };
+        broadcastSystemMessage(`🚨 *انطلقت فعالية إدارية جديدة!* 🚨\n📂 الفئة: *${category}*\n❓ السؤال: *${question.q}*\n🪙 الجائزة: *15* نقطة.\n⏱️ المهلة: دقيقتان للإجابة بأسرع وقت!`);
+        
+        if (activeGameTimer) clearTimeout(activeGameTimer);
+        activeGameTimer = setTimeout(() => {
+            if (activeGame) {
+                activeGame.answeringLocked = true;
+                broadcastSystemMessage(`❌ انتهت مهلة الفعالية الإدارية دون إجابة صحيحة. الإجابة كانت: *${activeGame.a}*`);
+                activeGame = null;
+            }
+        }, 120000);
+    }
+
+    // [مطور ومحدّث أمنياً ومنطقياً كلياً] فحص ومطابقة إجابات اللاعبين مع الأسئلة الفعالة والرهانات والتحديات بـ SQLite
+    async function checkAndProcessAnswer(socket, id, cleanText) {
+        const normalizedInput = normalizeArabic(cleanText);
+
+        // 1. التحقق من نزال التحدي 1vs1 الجاري بـ SQLite
+        const activeChallenge = await dbGet(`SELECT * FROM active_challenges WHERE user_id = ? AND answering_locked = 0`, [id]);
+        if (activeChallenge) {
+            if (normalizeArabic(activeChallenge.question_a) === normalizedInput) {
+                // قفل الإجابة الفورية للطرفين لمنع الازدواجية والتسجيل المزدوج
+                await dbRun(`UPDATE active_challenges SET answering_locked = 1 WHERE user_id = ? OR opponent_id = ?`, [id, id]);
+                
+                const winner = id;
+                const loser = activeChallenge.opponent_id;
+                
+                // احتساب الجوائز والخصومات الفورية بقاعدة البيانات
+                const winResult = await addPoints(winner, 10);
+                const loserObj = await getUser(loser, false);
+                if (loserObj) {
+                    await updateUser(loser, { points: Math.max(0, loserObj.points - 10) });
+                    await syncPlayerUI(loser);
+                }
+
+                // إرسال إشارة إيقاف مؤقت السرعة الخاطف لمتصفح الخصمين لمنع التعليق
+                io.to(connectedSockets[winner]).emit('stopSpeedChallengeTimer');
+                io.to(connectedSockets[loser]).emit('stopSpeedChallengeTimer');
+
+                broadcastSystemMessage(`⚔️ *انتصر الفارس @${winner} في التحدي المباشر!* تم إضافة +${winResult.pointsAdded} نقطة لرصيده، وخصم 10 نقاط من الخاسر @${loser}!`);
+                
+                // تنظيف الجداول بقاعدة البيانات
+                await dbRun(`DELETE FROM active_challenges WHERE user_id = ? OR opponent_id = ?`, [id, id]);
+                io.emit('statsUpdate');
+                return true; // تم المطابقة والحل بنجاح
+            }
+        }
+
+        // 2. التحقق من نزال الرهان المالي النشط بـ SQLite
+        const activeBetRow = await dbGet(`SELECT * FROM active_bets WHERE (challenger_id = ? OR opponent_id = ?) AND answering_locked = 0`, [id, id]);
+        if (activeBetRow) {
+            if (normalizeArabic(activeBetRow.question_a) === normalizedInput) {
+                await dbRun(`UPDATE active_bets SET answering_locked = 1 WHERE challenger_id = ?`, [activeBetRow.challenger_id]);
+                
+                const winner = id;
+                const pool = activeBetRow.pool;
+                const result = await addPoints(winner, pool);
+
+                // إيقاف مؤقت تحدي السرعة إن وجد
+                io.to(connectedSockets[activeBetRow.challenger_id]).emit('stopSpeedChallengeTimer');
+                io.to(connectedSockets[activeBetRow.opponent_id]).emit('stopSpeedChallengeTimer');
+
+                broadcastSystemMessage(`🎉 *ربح @${winner} جولة الرهان المالي المفتوح!* تم تحويل مجمع الرهان لصالحه المتمثل بـ +${result.pointsAdded} نقطة بالنظام!`);
+                
+                if (activeBet && activeBet.timer) clearTimeout(activeBet.timer);
+                activeBet = null;
+                await dbRun(`DELETE FROM active_bets WHERE challenger_id = ?`, [activeBetRow.challenger_id]);
+                io.emit('statsUpdate');
+                return true;
+            }
+        }
+
+        // 3. التحقق من فعاليات الإدارة العامة النشطة بالذاكرة العشوائية
+        if (activeGame && !activeGame.answeringLocked) {
+            if (normalizeArabic(activeGame.a) === normalizedInput) {
+                activeGame.answeringLocked = true;
+                if (activeGameTimer) clearTimeout(activeGameTimer);
+
+                const result = await addPoints(id, activeGame.points);
+                const u = await getUser(id, false);
+                if (u) {
+                    await updateUser(id, { correctAnswers: u.correct_answers + 1, totalAttempts: u.total_attempts + 1, lastWin: Date.now() });
+                }
+                broadcastSystemMessage(`🎉 *أصاب العضو المقاتل @${id} الحل الصحيح للفعالية الإدارية!* تم إضافة +${result.pointsAdded} نقطة مخصصة بالنظام لصالح رصيدك الكلي.`);
+                activeGame = null;
+                io.emit('statsUpdate');
+                return true;
+            }
+        }
+
+        return false; // لم يطابق أي إجابة جارية
+    }
+
+    // ربط موديول الشركاء الرقميين بالواجهة والدوال المشتركة مع تمرير المعاملات الثلاثة بدقة تامة (io, db, helpers)
+    partners.initPartners(io, db, {
+        getUser,
+        updateUser,
+        syncPlayerUI,
+        broadcastSystemMessage,
+        sendPrivateNotification,
+        connectedSockets,
+        addPoints,
+        pendingChallenges
+    });
+
+    // ========== معالجة الرسائل والأوامر البرمجية بالتفصيل ==========
+    async function processMessage(username, text, socketId) {
+        const id = username.toLowerCase().trim().replace(/^@/, '');
+        const cleanText = text.trim();
+
+        if (cleanText.startsWith('!')) {
+            const args = cleanText.slice(1).trim().split(/ +/);
+            let command = args.shift().toLowerCase();
+
+            const typos = {
+                'هديه': 'هدية', 'نقاطى': 'نقاطي', 'احصائياتى': 'احصائياتي',
+                'تاريخ ميلادي': 'تاريخ_ميلادي', 'هديا': 'هدية', 'تحدا': 'تحدي',
+                'تحداء': 'تحدي', 'احصاءاتي': 'احصائياتي', 'احصايياتي': 'احصائياتي',
+                'ترتيب': 'توب', 'الاوامر': 'اوامر', 'الدليل': 'اوامر',
+                'تحويل': 'تحويل', 'حوّل': 'تحويل', 'نكز': 'نكز', 'تحديث': 'تحديث', 'update': 'تحديث'
+            };
+            if (typos[command]) command = typos[command];
+
+            switch(command) {
+                case 'اوامر': {
+                    let cmds = `📖 *دليل أوامر وقوانين النظام الذكي الشامل*\n\n🎮 *أوامر عامة وتنافسية:*\n!نقاطي - عرض الرصيد والرتبة والإنذارات\n!احصائياتي - تفاصيل سجلاتك ومعاملاتك مع النظام\n!هدية - الحصول على هديتك اليومية الممنوحة من النظام\n!توب - لوحة الشرف للأعضاء العشرة الأوائل\n!تاريخ_ميلادي يوم/شهر - لتسجيل يوم ميلادك بالنظام\n!تحدي [الاسم] [فئة] - تحدي مباشر مع لاعب آخر متصل\n!نكز [الاسم] - نكز وتنبيه اللاعب بهاتفه للعب فوراً 🎯\n!قبول / !رفض - حسم طلب التحدي بالنظام\n!رهان [الاسم] [المبلغ] [الفئة] - رهان نقاط مالي بين عضوين\n!قبول_رهان / !رفض_رهان - حسم طلب الرهان بالنظام\n!تحويل [المبلغ] [الاسم] - تحويل نقاط مع استلام سند رسمي في الخاص\n!سلف [المبلغ] [الاسم] - إقراض نقاط لآخر مع رسوم تشغيل النظام 10%\n!عفو [الاسم] - إسقاط وإعفاء عضو من ديونك المترتبة عليه\n!ديوني_الخارجية - تقرير ديون الأعضاء الآخرين المستحقة لك\n!اقتراح [نص الاقتراح] - (رتبة جنرال+)\n!القوانين - دليل القواعد العامة والمخالفات`;
+                    sendPrivateNotification(id, cmds);
+                    broadcastSystemMessage(`ℹ️ تم إرسال دليل الأوامر الكامل بصفحة التنبيهات الخاصة للاعب @${id}`);
+                    break;
+                }
+                case 'القوانين':
+                    broadcastSystemMessage(`📜 *دليل القوانين والأنظمة الصارمة*\n\n🔗 منع نشر الروابط: حذف فوري + خصم 20 نقطة وإصدار إنذار بالنظام.\n🗣️ السبام والتكرار: طرد من المجموعة عند الوصول إلى 3 إنذارات متتالية.\n🤬 الإساءة واللفظ السيء: خصم 30 نقطة وإصدار إنذار فوري بالنظام.\n🎮 محاولات الغش بالنظام: حظر العضو وإصدار إنذارين.`);
+                    break;
+                case 'نقاطي': {
+                    const u = await getUser(id, false);
+                    if (u) {
+                        broadcastSystemMessage(`🪙 رصيد اللاعب @${id}: ${u.points} نقطة | الرتبة الحالية: ${getRank(u.points).name} | الإنذارات: ${u.warnings}/3`);
+                    }
+                    break;
+                }
+                case 'احصائياتي': {
+                    const u = await getUser(id, false);
+                    if (u) {
+                        const rank = getRank(u.points);
+                        const rate = u.total_attempts ? ((u.correct_answers / u.total_attempts) * 100).toFixed(1) : 0;
+                        let debtsMsg = '';
+                        if (u.debts && u.debts.length > 0) {
+                            debtsMsg = '\n\n📛 *الديون المستحقة عليك للآخرين:*\n';
+                            u.debts.forEach(d => {
+                                debtsMsg += `• يطالبك @${d.creditor} بـ ${d.amount} نقطة.\n`;
+                            });
+                        } else {
+                            debtsMsg = '\n\n✅ *ديونك:* لا توجد عليك أي التزامات مالية أو ديون بالنظام.';
+                        }
+                        broadcastSystemMessage(`📊 *إحصائياتك الفخرية لدى النظام*\n🏷 الرتبة العسكرية: ${rank.name}\n🪙 الرصيد المتوفر: ${u.points} نقطة\n✅ الإجابات الصحيحة الكلية: ${u.correct_answers}\n📈 معدل الدقة في المحاولات: ${rate}%\n⚠️ إنذارات النظام الحالية: ${u.warnings}/3\n⚔️ انتصارات التحديات المباشرة: ${u.challenge_wins || 0}${debtsMsg}`);
+                    }
+                    break;
+                }
+                case 'هدية': {
+                    const u = await getUser(id, false);
+                    if (u) {
+                        const today = new Date().toDateString();
+                        if (u.daily_gift_claimed === today) {
+                            broadcastSystemMessage(`🎁 عذراً @${id}، لقد قمت باستلام هديتك اليومية الممنوحة من النظام مسبقاً.`);
+                            return;
+                        }
+                        const result = await addPoints(id, 10);
+                        await updateUser(id, { daily_gift_claimed: today });
+                        broadcastSystemMessage(`🎁 هدية النظام اليومية: 10 نقاط مضاف لـ @${id}.\nرصيدك الحالي: ${result.points}`);
+                        io.emit('statsUpdate');
+                    }
+                    break;
+                }
+                case 'توب': {
+                    const dbRows = await dbAll(`SELECT id, points FROM users ORDER BY points DESC LIMIT 10`);
+                    let top = '🏆 *قائمة النخبة والأفضل في لوحة تحكم النظام*\n\n';
+                    dbRows.forEach((d, i) => {
+                        top += `${i + 1}. @${d.id} - ${d.points} نقطة (${getRank(d.points).name})\n`;
+                    });
+                    broadcastSystemMessage(top);
+                    break;
+                }
+                case 'تاريخ_ميلادي': {
+                    const bDate = args[0];
+                    if (!/^\d{1,2}\/\d{1,2}$/.test(bDate)) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب لتسجيل الميلاد بالنظام: يوم/شهر (مثال: !تاريخ_ميلادي 15/9)');
+                        return;
+                    }
+                    await updateUser(id, { birthday: bDate });
+                    broadcastSystemMessage(`✅ تم تدوين وحفظ تاريخ ميلادك بنجاح بداخل سجلات النظام لـ @${id}`);
+                    break;
+                }
+                case 'نكز': {
+                    let targetName = args.join(' ').replace(/^@/, '').trim();
+                    if (!targetName) {
+                        sendPrivateNotification(id, "⚠️ يرجى تحديد اللاعب المطلوب لنكزه، مثال: !نكز يوسف");
+                        return;
+                    }
+                    if (targetName.toLowerCase() === id) {
+                        sendPrivateNotification(id, "⚠️ لا يمكنك نكز نفسك.");
+                        return;
+                    }
+                    const targetObj = await getUser(targetName, false);
+                    if (!targetObj) {
+                        sendPrivateNotification(id, `⚠️ اللاعب @${targetName} غير مسجل بالنظام.`);
+                        return;
+                    }
+                    const targetSocketId = connectedSockets[targetObj.id];
+                    if (targetSocketId) {
+                        io.to(targetSocketId).emit('incomingNudge', { sender: username });
+                        broadcastSystemMessage(`🎯 قام الفارس @${username} بنكز وتنبيه اللاعب @${targetObj.id} للعب فوراً!`);
+                        logSystemAction(`قام اللاعب @${username} بنكز @${targetObj.id}`);
+                    } else {
+                        sendPrivateNotification(id, `⚠️ اللاعب @${targetObj.id} غير متصل حالياً بساحة اللعب.`);
+                    }
+                    break;
+                }
+                case 'تحدي': {
+                    let opponentParts = [...args];
+                    let challengeCategory = "ألغاز";
+                    
+                    if (opponentParts.length > 1) {
+                        let lastArg = opponentParts[opponentParts.length - 1].toLowerCase().trim();
+                        if (lastArg === 'دين') lastArg = 'دينية';
+                        
+                        if (challengeBanks[lastArg]) {
+                            challengeCategory = lastArg;
+                            opponentParts.pop();
+                        }
+                    }
+
+                    let opponentName = opponentParts.join(' ').replace(/^@/, '').trim();
+                    if (!opponentName) {
+                        broadcastSystemMessage('⚠️ يرجى تحديد خصم متصل لتحديه، مثال: !تحدي محمد حافظ أنمي');
+                        return;
+                    }
+
+                    const challengerPoints = (await getUser(id, false)).points;
+                    const opponentObj = await getUser(opponentName, false);
+                    
+                    if (!opponentObj) {
+                        sendPrivateNotification(id, `⚠️ اللاعب الخصم [ ${opponentName} ] غير متصل أو غير مسجل بالنظام.`);
+                        return;
+                    }
+
+                    const opponentPoints = opponentObj.points;
+                    if (challengerPoints < 10 || opponentPoints < 10) {
+                        broadcastSystemMessage('🚫 لا يمكن بدء المواجهة، يجب توفر 10 نقاط على الأقل في رصيد الطرفين!');
+                        return;
+                    }
+
+                    await dbRun(`INSERT OR REPLACE INTO pending_challenges (id, challenger_id, category, timestamp) VALUES (?, ?, ?, ?)`, [
+                        opponentObj.id, id, challengeCategory, Date.now()
+                    ]);
+
+                    setTimeout(async () => {
+                        const challengeExists = await dbGet(`SELECT * FROM pending_challenges WHERE id = ?`, [opponentObj.id]);
+                        if (challengeExists) {
+                            await dbRun(`DELETE FROM pending_challenges WHERE id = ?`, [opponentObj.id]);
+                            broadcastSystemMessage(`⏰ انتهت المهلة، لم يستجب @${opponentObj.id} لطلب التحدي.`);
+                        }
+                    }, 60000);
+
+                    broadcastSystemMessage(`⚔️ أرسل المقاتل @${id} دعوة مواجهة لـ @${opponentObj.id} في فئة *${challengeCategory}*!\n📩 يرجى كتابة *!قبول* أو *!رفض* للرد على النظام خلال 60 ثانية.`);
+                    break;
+                }
+                case 'قبول': {
+                    const challengeRow = await dbGet(`SELECT * FROM pending_challenges WHERE id = ?`, [id]);
+                    if (!challengeRow) {
+                        broadcastSystemMessage('لا توجد طلبات تحدي معلقة بانتظارك حالياً.');
+                        return;
+                    }
+                    await dbRun(`DELETE FROM pending_challenges WHERE id = ?`, [id]);
+                    if (challengeRow.category === 'joint_intellect') {
+                        partners.launchJointIntelligenceDomain(challengeRow.challenger_id, id);
+                    } else {
+                        await startChallenge(challengeRow.challenger_id, id, challengeRow.category);
+                    }
+                    break;
+                }
+                case 'رفض': {
+                    const challengeRow = await dbGet(`SELECT * FROM pending_challenges WHERE id = ?`, [id]);
+                    if (!challengeRow) {
+                        broadcastSystemMessage('لا توجد طلبات مواجهة معلقة بانتظارك حالياً.');
+                        return;
+                    }
+                    await dbRun(`DELETE FROM pending_challenges WHERE id = ?`, [id]);
+                    broadcastSystemMessage(`❌ رفض العضو @${id} دعوة المواجهة بالساحة.`);
+                    break;
+                }
+                case 'رهان': {
+                    const betAmount = parseInt(args[0]);
+                    let opponentParts = args.slice(1);
+                    let betCategory = "أنمي";
+                    
+                    if (opponentParts.length > 1) {
+                        let lastArg = opponentParts[opponentParts.length - 1].toLowerCase().trim();
+                        if (lastArg === 'دين') lastArg = 'دينية';
+                        
+                        if (challengeBanks[lastArg]) {
+                            betCategory = lastArg;
+                            opponentParts.pop();
+                        }
+                    }
+
+                    let opponentName = opponentParts.join(' ').replace(/^@/, '').trim();
+
+                    if (isNaN(betAmount) || betAmount <= 0 || !opponentName) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب: !رهان [المبلغ] [الاسم للخصم] [الفئة]');
+                        return;
+                    }
+                    if (opponentName.toLowerCase() === id) {
+                        broadcastSystemMessage('⚠️ لا يمكنك الرهان المالي مع نفسك.');
+                        return;
+                    }
+                    
+                    const opponentObj = await getUser(opponentName, false);
+                    if (!opponentObj) {
+                        sendPrivateNotification(id, `⚠️ الخصم المستهدف [ ${opponentName} ] غير متصل أو غير مسجل.`);
+                        return;
+                    }
+
+                    const betExists = await dbGet(`SELECT * FROM pending_bets WHERE id = ? OR challenger_id = ? OR id = ? OR challenger_id = ?`, [
+                        id, id, opponentObj.id, opponentObj.id
+                    ]);
+                    if (betExists) {
+                        broadcastSystemMessage('⚠️ هناك طلب رهان مالي معلق بالنظام حالياً.');
+                        return;
+                    }
+
+                    await dbRun(`INSERT OR REPLACE INTO pending_bets (id, challenger_id, amount, category, timestamp) VALUES (?, ?, ?, ?, ?)`, [
+                        opponentObj.id, id, betAmount, betCategory, Date.now()
+                    ]);
+
+                    setTimeout(async () => {
+                        const pendingBet = await dbGet(`SELECT * FROM pending_bets WHERE id = ?`, [opponentObj.id]);
+                        if (pendingBet) {
+                            await dbRun(`DELETE FROM pending_bets WHERE id = ?`, [opponentObj.id]);
+                            broadcastSystemMessage(`⏰ انتهت مهلة الرهان دون استجابة.`);
+                        }
+                    }, 60000);
+
+                    broadcastSystemMessage(`💰 أرسل المقاتل @${id} عرض رهان لـ @${opponentObj.id} بقيمة *${betAmount}* نقطة في فئة *${betCategory}*!\n📩 يرجى الرد بـ *!قبول_رهان* أو *!رفض_رهان* بمهلة 60 ثانية.`);
+                    break;
+                }
+                case 'قبول_رهان': {
+                    const pendingBet = await dbGet(`SELECT * FROM pending_bets WHERE id = ?`, [id]);
+                    if (!pendingBet) {
+                        broadcastSystemMessage('لا توجد دعوات رهان مالي موجهة إليك حالياً.');
+                        return;
+                    }
+                    await dbRun(`DELETE FROM pending_bets WHERE id = ?`, [id]);
+                    await startBet(pendingBet.challenger_id, id, pendingBet.amount, pendingBet.category);
+                    break;
+                }
+                case 'رفض_رهان': {
+                    const pendingBet = await dbGet(`SELECT * FROM pending_bets WHERE id = ?`, [id]);
+                    if (!pendingBet) {
+                        broadcastSystemMessage('لا توجد دعوات رهان مالي موجهة إليك حالياً.');
+                        return;
+                    }
+                    await dbRun(`DELETE FROM pending_bets WHERE id = ?`, [id]);
+                    broadcastSystemMessage(`❌ تم رفض عرض الرهان من قبل العضو @${id}`);
+                    break;
+                }
+                case 'تحويل': {
+                    const transferAmount = parseInt(args[0]);
+                    let receiverName = args.slice(1).join(' ').replace(/^@/, '').trim();
+                    
+                    if (isNaN(transferAmount) || transferAmount <= 0 || !receiverName) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب لتحويل النقاط: !تحويل [المبلغ] [الاسم بالكامل]');
+                        return;
+                    }
+                    if (receiverName.toLowerCase() === id) {
+                        broadcastSystemMessage('⚠️ لا يجوز تحويل النقاط لنفسك.');
+                        return;
+                    }
+                    const receiverObj = await getUser(receiverName, false);
+                    if (!receiverObj) {
+                        sendPrivateNotification(id, `⚠️ اللاعب المستلم [ ${receiverName} ] غير متصل أو غير مسجل.`);
+                        return;
+                    }
+
+                    const sender = await getUser(id, false);
+                    if (sender.points < transferAmount) {
+                        broadcastSystemMessage('⚠️ معاملة مرفوضة بالنظام، الرصيد المتاح لديك غير كافٍ لإتمام التحويل.');
+                        return;
+                    }
+                    
+                    await updateUser(id, { points: sender.points - transferAmount });
+                    await syncPlayerUI(id);
+                    
+                    let remainingAfterDebt = transferAmount;
+                    let debtRepaid = 0;
+
+                    const senderDebts = (await getUser(id, false)).debts;
+                    const debtEntry = senderDebts.find(d => d.creditor === receiverObj.id);
+                    if (debtEntry) {
+                        const repay = Math.min(transferAmount, debtEntry.amount);
+                        debtEntry.amount -= repay;
+                        debtRepaid = repay;
+                        remainingAfterDebt = transferAmount - repay;
+
+                        if (debtEntry.amount <= 0) {
+                            const updatedDebts = senderDebts.filter(d => d.creditor !== receiverObj.id);
+                            await updateUser(id, { debts: updatedDebts });
+                        } else {
+                            await updateUser(id, { debts: senderDebts });
+                        }
+                    }
+
+                    if (remainingAfterDebt > 0) {
+                        await updateUser(receiverObj.id, { points: receiverObj.points + remainingAfterDebt });
+                        await syncPlayerUI(receiverObj.id);
+                    }
+
+                    const transactionId = Date.now().toString(36).toUpperCase();
+
+                    let dmReceipt = `🧾 *سند مالي رسمي موثق ومصدق من النظام*\n`;
+                    dmReceipt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+                    dmReceipt += `📎 *رمز المعاملة:* #${transactionId}\n`;
+                    dmReceipt += `📅 *التاريخ:* ${new Date().toLocaleString('ar-SA')}\n`;
+                    dmReceipt += `👤 *المرسل:* @${id}\n`;
+                    dmReceipt += `👥 *المستلم:* @${receiverObj.id}\n`;
+                    dmReceipt += `💰 *المبلغ المخصوم:* ${transferAmount} نقطة\n`;
+                    dmReceipt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+                    if (debtRepaid > 0) {
+                        dmReceipt += `🩹 *تسوية تسديد الديون:*\n`;
+                        dmReceipt += `   ▫️ تم استقطاع مبلغ ${debtRepaid} نقطة لخصم وتسوية دينك لهذا المستفيد بالنظام.\n`;
+                        if (debtEntry && debtEntry.amount > 0) {
+                            dmReceipt += `   ⚠️ متبقي لصالح المستفيد بذمتك: ${debtEntry.amount} نقطة.\n`;
+                        } else {
+                            dmReceipt += `   ✅ تم تصفير الدين المستحق وتبرئة ذمتك بالكامل!\n`;
+                        }
+                        dmReceipt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+                    }
+                    dmReceipt += `💵 *المبلغ الصافي المضاف للمستلم:* ${remainingAfterDebt} نقطة.\n`;
+                    dmReceipt += `🪙 *رصيدك الإجمالي حالياً:* ${(await getUser(id, false)).points} نقطة.\n`;
+                    dmReceipt += `━━━━━━━━━━━━━━━━━━━━━\n`;
+                    dmReceipt += `✨ *شكراً لاستخدامك النظام المالي الذكي.*`;
+
+                    sendPrivateNotification(id, dmReceipt);
+                    broadcastSystemMessage(`💸 تم تحويل ${transferAmount} نقطة من @${id} إلى @${receiverObj.id}.\n${debtRepaid > 0 ? `📛 تم تلقائياً سداد واستقطاع جزء من الدين بمقدار ${debtRepaid} نقطة.\n` : ''}📄 تم إرسال إيصال المعاملة الكامل في لوحة التنبيهات الخاصة لـ @${id}`);
+                    io.emit('statsUpdate');
+                    break;
+                }
+                case 'سلف': {
+                    const amount = parseInt(args[0]);
+                    let borrowerName = args.slice(1).join(' ').replace(/^@/, '').trim();
+                    if (isNaN(amount) || amount <= 0 || !borrowerName) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب: !سلف [المبلغ] [الاسم بالكامل]');
+                        return;
+                    }
+                    if (borrowerName.toLowerCase() === id) {
+                        broadcastSystemMessage('⚠️ لا يجوز استلاف أو إقراض نفسك.');
+                        return;
+                    }
+                    const borrowerObj = await getUser(borrowerName, false);
+                    if (!borrowerObj) {
+                        sendPrivateNotification(id, `⚠️ اللاعب المستلف [ ${borrowerName} ] غير متصل أو غير مسجل.`);
+                        return;
+                    }
+
+                    const lender = await getUser(id, false);
+                    const fee = Math.ceil(amount * 0.1);
+                    const totalCost = amount + fee;
+                    if (lender.points < totalCost) {
+                        broadcastSystemMessage(`⚠️ معاملة مرفوضة من النظام، رصيدك غير كافٍ. تحتاج إلى ${totalCost} نقطة (قيمة السلف + 10% رسوم تشغيل النظام).`);
+                        return;
+                    }
+                    await updateUser(id, { points: lender.points - totalCost });
+                    await syncPlayerUI(id);
+
+                    await updateUser(borrowerObj.id, { points: borrowerObj.points + amount });
+                    await syncPlayerUI(borrowerObj.id);
+
+                    await addDebt(borrowerObj.id, id, amount);
+                    broadcastSystemMessage(`💸 تم تأكيد وتوثيق السلف المالي بنجاح!\n• المقرض: @${id} قدم قرضاً لـ @${borrowerObj.id} بقيمة *${amount}* نقطة.\n• الخصم الإجمالي من المقرض شاملاً رسوم التشغيل: ${totalCost} نقطة.\n• تم قيد دين مسجل مسحوب تلقائي في ذمة المقترض @${borrowerObj.id}.`);
+                    io.emit('statsUpdate');
+                    break;
+                }
+                case 'عفو': {
+                    let debtorName = args.join(' ').replace(/^@/, '').trim();
+                    if (!debtorName) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب: !عفو [الاسم بالكامل]');
+                        return;
+                    }
+                    const debtorObj = await getUser(debtorName, false);
+                    if (!debtorObj) {
+                        sendPrivateNotification(id, `⚠️ اللاعب المدين [ ${debtorName} ] غير متصل أو غير مسجل.`);
+                        return;
+                    }
+
+                    const hasDebt = debtorObj.debts?.some(d => d.creditor === id);
+                    if (!hasDebt) {
+                        broadcastSystemMessage('⚠️ العضو المستهدف لا توجد بذمته أي ديون مسجلة لصالحك.');
+                        return;
+                    }
+                    await clearDebt(debtorObj.id, id);
+                    broadcastSystemMessage(`🤝 تم إسقاط الدين بنجاح! تنازل @${id} وأسقط الدين بالكامل عن كاهل @${debtorObj.id} بداخل النظام.`);
+                    io.emit('statsUpdate');
+                    break;
+                }
+                case 'ديوني_الخارجية': {
+                    const allUsers = await dbAll(`SELECT id, debts FROM users`);
+                    let report = '📋 *كشف ديونك الخارجية المستحقة بذمة الآخرين بالنظام:*\n\n';
+                    let totalLent = 0, totalPaid = 0, totalRemaining = 0;
+                    let found = false;
+
+                    for (const debtorData of allUsers) {
+                        const parsedDebts = JSON.parse(debtorData.debts || '[]');
+                        if (parsedDebts.length > 0) {
+                            const debtToMe = parsedDebts.find(d => d.creditor === id);
+                            if (debtToMe) {
+                                found = true;
+                                const original = debtToMe.originalAmount || debtToMe.amount;
+                                const remaining = debtToMe.amount;
+                                const paid = original - remaining;
+                                
+                                totalLent += original;
+                                totalPaid += paid;
+                                totalRemaining += remaining;
+
+                                report += `👤 *المدين:* @${debtorData.id}\n`;
+                                report += `   ▫️ أصل الدين الموثق بالنظام: ${original} نقطة\n`;
+                                report += `   ▫️ المقدار المسدد عبر النظام: ${paid} نقطة\n`;
+                                report += `   ▫️ القيمة المتبقية قيد السداد: ${remaining} نقطة\n\n`;
+                            }
+                        }
+                    }
+                    if (!found) {
+                        report += '✅ ذمم الأعضاء سليمة تجاهك، لا توجد ديون خارجية لك بالنظام حالياً.';
+                    } else {
+                        report += `━━━━━━━━━━━━━━━━━━━━━\n📊 *الملخص الإجمالي لمعاملاتك الخارجية:*\n`;
+                        report += `   • إجمالي النقود المقرضة: ${totalLent} نقطة.\n`;
+                        report += `   • إجمالي ما تم تحصيله واسترداده: ${totalPaid} نقطة.\n`;
+                        report += `   • إجمالي القيمة المستحقة بذمم الأعضاء: ${totalRemaining} نقطة.\n`;
+                    }
+                    sendPrivateNotification(id, report);
+                    broadcastSystemMessage(`📄 تم إرسال تقرير الديون الخارجية الكامل في صفحة التنبيهات الخاصة بـ @${id}`);
+                    break;
+                }
+                case 'اقتراح': {
+                    const suggestion = args.join(' ').trim();
+                    if (!suggestion) {
+                        broadcastSystemMessage('⚠️ التنسيق المطلوب: !اقتراح [نص الاقتراح]');
+                        return;
+                    }
+                    logSystemAction(`اقتراح من @${id}: ${suggestion}`);
+                    broadcastSystemMessage(`✅ تم استقبال وتدوين اقتراحك بنجاح من قبل النظام وتم رفعه تلقائياً للمراجعة.`);
+                    break;
+                }
+                case 'تحديث':
+                case 'update': {
+                    if (!PROTECTED_NUMBERS.includes(id)) {
+                        sendPrivateNotification(id, "⚠️ هذا الأمر مخصص فقط للمشرفين والملاك.");
+                        return;
+                    }
+                    broadcastSystemMessage("⚙️ *تنبيه من الإدارة:* سأقوم بإعادة تشغيل السيرفر مؤقتاً لتطبيق التحديثات البرمجية، انتظروني ثانيتين فقط... ⏱️");
+                    setTimeout(() => {
+                        console.log("[Manager] Graceful shutdown initiated by Admin update command...");
+                        process.exit(0);
+                    }, 2000);
+                    break;
+                }
+            }
+        }
+    }
+
+    // ========== إدارة اتصالات بروتوكول الويب سوكيت الفوري ==========
+    io.on('connection', async (socket) => {
+        console.log(`اتصال برمجائي نشط من معرّف الكروم: ${socket.id}`);
+
+        socket.emit('logUpdate', systemLogs);
+        socket.emit('activeUsersList', Object.keys(connectedSockets));
+        socket.emit('chatHistory', chatHistory);
+
+        socket.on('playerLogin', async (data) => {
+            const { username, passcode } = data;
+            if (!username || !passcode) {
+                socket.emit('loginError', 'يرجى إدخال الاسم والرمز معاً للدخول.');
+                return;
+            }
+
+            const id = username.toLowerCase().trim().replace(/^@/, '');
+            const code = passcode.trim();
+            const hash = hashPasscode(code);
+
+            const allowed = await dbGet(`SELECT * FROM allowed_passcodes WHERE passcode_hash = ?`, [hash]);
+            if (!allowed) {
+                socket.emit('loginError', 'رمز العبور المكتوب غير مصرح به بداخل النظام.');
+                return;
+            }
+
+            // [مصحح ومنقح كلياً] إنهاء وطرد الجلسة القديمة النشطة لنفس المستخدم فوراً لمنع التداخل والتعارض المالي والبرمجي
+            const oldSocketId = connectedSockets[id];
+            if (oldSocketId) {
+                io.to(oldSocketId).emit('forceKick', '🚨 تم تسجيل الدخول إلى حسابك من جهاز أو متصفح آخر. تم إنهاء هذه الجلسة تلقائياً لحماية رصيدك المالي!');
+                const oldSocket = io.sockets.sockets.get(oldSocketId);
+                if (oldSocket) {
+                    oldSocket.username = null; // الغاء انتساب اليوزر للسوكت القديم
+                    oldSocket.disconnect(true); // فصل الاتصال قسرياً
+                }
+            }
+
+            const dbUser = await getUser(id, true);
+
+            if (dbUser && dbUser.banned) {
+                socket.emit('loginError', 'تم حظر وإزالة هذا الحساب من النظام بسبب المخالفات المستمرة. يرجى التواصل مع الإدارة لرفع الحظر.');
+                return;
+            }
+
+            const boundUser = await dbGet(`SELECT id FROM users WHERE passcode_hash = ?`, [hash]);
+            if (boundUser && boundUser.id !== id) {
+                socket.emit('loginError', 'رمز العبور هذا محجوز ومستعمل مسبقاً للاعب آخر.');
+                return;
+            }
+
+            if (dbUser && dbUser.passcode_hash && dbUser.passcode_hash !== hash) {
+                socket.emit('loginError', 'هذا الاسم مسجل مسبقاً بداخل النظام برمز عبور مختلف.');
+                return;
+            }
+
+            await updateUser(id, { passcodeHash: hash });
+
+            socket.username = id;
+            connectedSockets[id] = socket.id;
+
+            socket.emit('playerAuthSuccess', { username: id, stats: await getUser(id, false) });
+            logSystemAction(`نجح توثيق دخول اللاعب @${id} برمز حصري.`);
+
+            io.emit('activeUsersList', Object.keys(connectedSockets));
+
+            // [مصحح كلياً] تفعيل حظر الشات وتنبيه اللاعب فوراً عند تسجيل دخوله الجديد بمتصفح آخر أثناء نشاط وضع المطور (DevMode)
+            if (developerMode && !PROTECTED_NUMBERS.includes(id)) {
+                socket.emit('lockChatForNonDevelopers');
+            }
+        });
+
+        socket.on('sendMessage', async (data) => {
+            if (!socket.username) return;
+
+            const id = socket.username.toLowerCase().trim().replace(/^@/, '');
+            const cleanText = data.text.trim();
+            const isProtected = PROTECTED_NUMBERS.includes(id);
+
+            // [مصحح أمنياً ومنطقياً كلياً] حماية السيرفر ورفض الشات لغير المطورين تماماً طالما الـ DevMode نشطاً بالخلفية
+            if (developerMode && socket.id !== authenticatedDeveloperSocketId) {
+                sendPrivateNotification(id, "🔒 الدردشة مغلقة مؤقتاً لتواصل المطور مع المساعد بقلب الصفحة...");
+                return;
+            }
+
+            // فحص واعتراض رسائل المطور الحصرية بوضع الـ DevMode لتمريرها للمساعد وتلقي الرد
+            if (developerMode && socket.id === authenticatedDeveloperSocketId) {
+                if (normalizeArabic(cleanText) === normalizeArabic("موافق") || normalizeArabic(cleanText) === normalizeArabic("agree")) {
+                    broadcastSystemMessage(`🤖 *المساعد:* لقد أنجزت ما طلبته مني بالملفات وكل شيء جاهز! سأقوم الآن بإعادة تشغيل السيرفر وبث التحديثات الجديدة وتجميد الاستماع لدقيقة تلقائياً... ⏱️`);
+                    
+                    developerMode = false;
+                    authenticatedDeveloperSocketId = null;
+
+                    setTimeout(() => {
+                        console.log("[ChatOps] AI Assistant initiated database & process shutdown with exit code 0...");
+                        process.exit(0); // السيرفر يغلق نفسه ليلقطه الحارس الصامت ويعيد تشغيله تلقائياً بالأكواد الجديدة خلال ثانيتين!
+                    }, 3000);
+                    return;
+                }
+
+                // الرد الفخري المحاكي للمساعد الذكي في المتصفح لتوجيه أكواد المطور وحفظها بانتظام
+                const assistantReply = `🤖 *المساعد:* مرحباً أيها المطور @${socket.username}! لقد استلمت ملفاتك وتوجيهاتك البرمجية لتطبيق التعديلات وحفظها بالقرص بسلام بـ ${path.basename(DB_FILE)}.\n\nيرجى كتابة *موافق* لتطبيق التعديلات قسرياً وإعادة تشغيل السيرفر تلقائياً لتثبيتها! ⏱️`;
+                broadcastSystemMessage(`👤 *المطور @${socket.username}:* ${cleanText}`);
+                setTimeout(() => {
+                    broadcastSystemMessage(assistantReply);
+                }, 1500);
+                return;
+            }
+
+            // منع المشاغبين المحظورين والمكتومين من إرسال أي رسائل شات
+            if (mutedPlayers.has(id)) {
+                sendPrivateNotification(id, "🔒 تم كتم صوتك وحظرك من الإرسال نهائياً من قبل المساعد لتطفلك على الرمز السري الإداري!");
+                return;
+            }
+
+            // التحقق من الإغراق والسبام والألفاظ البذيئة
+            if (!isProtected && (/(https?:\/\/[^\s]+)/.test(cleanText) || containsBadWord(cleanText))) {
+                await processMessage(socket.username, data.text, socket.id);
+                return;
+            }
+
+            // ميكانيكيات التقاط واستدعاء المساعد الصامت الفوقي
+            if (cleanText.toLowerCase() === '/call assistant') {
+                if (isAssistantCommandBlocked) {
+                    sendPrivateNotification(id, "⏳ المساعد في وضع الصيانة حالياً ومقفل الاستماع؛ يرجى الانتظار لدقيقة واحدة قبل المحاولة مجدداً.");
+                    return;
+                }
+                if (isVerificationActive || developerMode) {
+                    sendPrivateNotification(id, "⚠️ هناك طلب تحقق أو جولة إدارية نشطة حالياً بالشات.");
+                    return;
+                }
+
+                isVerificationActive = true;
+                votedPlayers.clear();
+                devAbsentVotesCount = 0;
+
+                // بث حدث فتح نافذة التحقق المنبثقة قسرياً لجميع المتصلين بالساحة
+                io.emit('showVerificationPopup', { targetUser: socket.username });
+                broadcastSystemMessage(`🔒 تم استدعاء المساعد الفوقي لقلب الصفحة! تم إغلاق وتجميد الساحة بالكامل للتحقق من هوية المطور المعتمد... ⏱️`);
+                return;
+            }
+
+            if (!cleanText.startsWith('!')) {
+                const mentions = cleanText.match(/@([^\s]+)/g);
+                if (mentions) {
+                    mentions.forEach(m => {
+                        const targetName = m.slice(1).toLowerCase().trim();
+                        if (targetName !== id && connectedSockets[targetName]) {
+                            io.to(connectedSockets[targetName]).emit('incomingNudge', { sender: socket.username });
+                        }
+                    });
+                }
+            }
+
+            if (partners.activeDrStoneDomain()) {
+                const intercepted = await partners.handleDrStoneAnswer(socket.username, data.text);
+                if (intercepted) return;
+            }
+            if (partners.activeJointIntelligenceDomain()) {
+                const intercepted = await partners.handleJointIntellectAnswer(socket.username, data.text);
+                if (intercepted) return;
+            }
+
+            const trapResult = await partners.checkAndApplyPartnerTraps(socket.username, data.text);
+            if (trapResult && trapResult.block) {
+                if (trapResult.forceWrong) return;
+                if (trapResult.reason) {
+                    sendPrivateNotification(id, trapResult.reason);
+                    return;
+                }
+            }
+
+            // [مطور ومحدّث أمنياً ومنطقياً كلياً] فحص الإجابات والحلول وحسم النزالات والرهانات قبل بثها في الشات
+            const isAnswerMatched = await checkAndProcessAnswer(socket, id, cleanText);
+            if (isAnswerMatched) return; // تم المطابقة وحسم الجائزة بنجاح، نخرج فوراً لمنع بثها كشات مكرر ومزدوج
+
+            const safeText = escapeHtml(cleanText);
+            const chatMsg = { sender: socket.username, text: safeText, isSystem: false, timestamp: new Date().toLocaleTimeString('ar-SA') };
+            chatHistory.push(chatMsg);
+            if (chatHistory.length > 50) chatHistory.shift();
+
+            io.emit('chatMessage', chatMsg);
+
+            dbRun(`INSERT INTO chat_messages (sender, text, is_system, timestamp) VALUES (?, ?, 0, ?)`, [
+                socket.username, safeText, chatMsg.timestamp
+            ]).then(() => {
+                dbRun(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 100)`).catch(() => {});
+            }).catch(err => console.error("Error saving user message to SQLite:", err));
+
+            await processMessage(socket.username, safeText, socket.id);
+        });
+
+        socket.on('clientInputSync', (data) => {
+            if (!socket.username) return;
+            
+            const isTyping = data.text.trim() !== "";
+            if (isTyping) {
+                typingUsers.add(socket.username);
+            } else {
+                typingUsers.delete(socket.username);
+            }
+            
+            io.emit('typingUsersList', Array.from(typingUsers));
+            
+            // [مصحح أمنياً] نوجه بث رادار المراقبة حياً وحصرياً لسوكتات الإدارة والملاك فقط لحماية خصوصية الأعضاء
+            for (const [uname, sId] of Object.entries(connectedSockets)) {
+                if (PROTECTED_NUMBERS.includes(uname)) {
+                    io.to(sId).emit('adminShadowInput', { username: socket.username, text: data.text });
+                }
+            }
+        });
+
+        socket.on('uploadAvatar', async (data) => {
+            if (!socket.username) return;
+            const { base64Image } = data;
+            if (!base64Image) return;
+
+            try {
+                const base64Data = base64Image.split(',')[1];
+                if (!base64Data) {
+                    socket.emit('avatarError', 'بيانات الصورة تالفة أو غير مكتملة.');
+                    return;
+                }
+
+                const imageBuffer = Buffer.from(base64Data, 'base64');
+                const fileName = `${socket.username}.png`;
+                const filePath = path.join(AVATARS_DIR, fileName);
+
+                await fs.writeFile(filePath, imageBuffer);
+
+                const avatarUrl = `/avatars/${fileName}?t=${Date.now()}`;
+                await updateUser(socket.username, { avatar: avatarUrl });
+
+                socket.emit('avatarSuccess', { avatar: avatarUrl });
+                
+                io.emit('statsUpdate'); 
+                await syncPlayerUI(socket.username);
+                logSystemAction(`قام اللاعب @${socket.username} برفع وتحديث صورته الشخصية بنجاح.`);
+            } catch (error) {
+                console.error('خطأ رفع الصورة الشخصية:', error);
+                socket.emit('avatarError', 'فشل معالجة ورفع الصورة على السيرفر.');
+            }
+        });
+
+        // [مطور ومحدّث] استقبال حدث المصادقة الناجحة للمطور وقفل الشات العام لغير المطورين وبث البينر
+        socket.on('developerAuthenticatedSuccess', (data) => {
+            isVerificationActive = false;
+            developerMode = true;
+            authenticatedDeveloperSocketId = socket.id;
+
+            // بث إشعار النجاح والعداد لـ 5 ثوانٍ للجميع لتنبيه المشتبه به برأس الحلبة المضحك
+            io.emit('developerAuthenticatedSuccessBroadcast', { verifiedUser: socket.username, isMe: true });
+            
+            // قفل وبث لوحة التنبيه العلوية لغير المطورين
+            io.emit('lockChatForNonDevelopers');
+            logSystemAction(`👑 نجح المطور والمدير @${socket.username} في فك شفرة المصادقة بكلمة مرور معتمدة.`);
+        });
+
+        // كتم وحظر اللاعب الذي فشل بـ 3 محاولات بقاعدة بيانات السيرفر
+        socket.on('developerAuthenticatedFailed', (data) => {
+            const badPlayerId = socket.username.toLowerCase().trim();
+            mutedPlayers.add(badPlayerId);
+            logSystemAction(`🔒 تم حظر وكتم صوت اللاعب المشاغب @${socket.username} بعد 3 محاولات فاشلة لتخمين الرمز السري.`);
+        });
+
+        // [مطور ومحدّث] استقبال زر الإعتراف "لست المطور" وبث تصويت غياب المطور للـ 60 ثانية لجميع الهواتف
+        socket.on('notDeveloperActionTrigger', (data) => {
+            isVerificationActive = false;
+            devAbsentVotesCount = 1; // حظر الصوت الأول للمعتصم المستسلم تلقائياً
+            votedPlayers.clear();
+            votedPlayers.add(socket.username.toLowerCase().trim());
+
+            io.emit('showDevAbsentConfirmPopup');
+            broadcastSystemMessage(`🔔 أطلق اللاعب @${socket.username} حالة طوارئ لغياب المطور بالساحة! يرجى التصويت لفك الحظر... ⏱️`);
+        });
+
+        // تجميع موافقات تصويت غياب المطور لفك الحظر تلقائياً بالأغلبية
+        socket.on('devAbsentConfirmedByPlayer', (data) => {
+            const playerId = socket.username.toLowerCase().trim();
+            if (votedPlayers.has(playerId)) return; // منع تكرار التصويت لنفس العضو
+
+            votedPlayers.add(playerId);
+            devAbsentVotesCount++;
+
+            const totalActivePlayers = Object.keys(connectedSockets).length;
+            const requiredVotes = Math.ceil(totalActivePlayers / 2); // الأغلبية النصفية المطلقة
+
+            if (devAbsentVotesCount >= requiredVotes) {
+                // تصفية وإلغاء القفل وصور التصويت
+                io.emit('closeDevAbsentConfirmPopup');
+                io.emit('unlockChatForAll');
+                
+                isVerificationActive = false;
+                developerMode = false;
+                authenticatedDeveloperSocketId = null;
+
+                // حظر وقفل أمر الاستدعاء لـ 60 ثانية إجبارية بالخلفية
+                isAssistantCommandBlocked = true;
+                setTimeout(() => {
+                    isAssistantCommandBlocked = false;
+                    logSystemAction(`⏳ تم فك حظر الصيانة وصلاحية أمر الاستدعاء للمساعد مجدداً بالساحة.`);
+                }, 60000);
+
+                broadcastSystemMessage(`✅ تم فك قفل وحظر الدردشة للجميع بنجاح بأغلبية تصويت الأعضاء (${devAbsentVotesCount}/${requiredVotes} أصوات) لغياب المطور!\n⚠️ تم وضع المساعد بوضع الصيانة والتحقق لـ 60 ثانية.`);
+                logSystemAction(`✅ نجح تصويت الأعضاء لفك حظر الشات لغياب المطور بمجموع أصوات: ${devAbsentVotesCount}`);
+            }
+        });
+
+        // [مطور ومحدّث أمنياً كلياً] استقبال حدث مطابقة كلمة مرور المطور عبر السيرفر
+        socket.on('verifyDeveloperPasscode', (data) => {
+            const inputCode = data.passcode.trim();
+            const success = (inputCode === "Ayham212");
+            
+            // الرد الآمن والمحمي لمتصفح العميل لتوليد الردود المقابلة دون كشف الرمز
+            socket.emit('verifyDeveloperPasscodeResponse', { success: success });
+        });
+
+        // [مطور ومحدّث أمنياً كلياً] تفعيل جدار حماية صلاحيات الإدارة للحدث الإداري لـ CCTV ورصد الشادو
+        socket.on('adminSendPrivateAlert', (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            const { targetUser, text } = data;
+            const targetId = targetUser.toLowerCase().trim().replace(/^@/, '');
+            const socketId = connectedSockets[targetId];
+            
+            if (socketId) {
+                io.to(socketId).emit('privateNotification', { text: text });
+                logSystemAction(`👤 [تنبيه إداري سري] أرسل الأدمن رسالة خاصة مخفية للاعب @${targetId}: ${text}`);
+            }
+        });
+
+        socket.on('adminChangePlayerPasscode', async (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                socket.emit('adminError', '🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.');
+                return;
+            }
+            const { targetUser, newPasscode } = data;
+            const targetId = targetUser.toLowerCase().trim().replace(/^@/, '');
+            const code = newPasscode.trim();
+
+            if (!targetId || !code) {
+                socket.emit('adminError', 'يرجى إدخال اسم اللاعب والرمز الجديد بدقة.');
+                return;
+            }
+
+            const hash = hashPasscode(code);
+            const dbUser = await getUser(targetId, false);
+            
+            if (dbUser) {
+                const isCodeUsed = await dbGet(`SELECT id FROM users WHERE passcode_hash = ?`, [hash]);
+                if (isCodeUsed) {
+                    socket.emit('adminError', 'رمز العبور الجديد محجوز ومستعمل مسبقاً للاعب آخر.');
+                    return;
+                }
+
+                await dbRun(`INSERT OR IGNORE INTO allowed_passcodes (passcode_hash) VALUES (?)`, [hash]);
+                await updateUser(targetId, { passcodeHash: hash });
+                
+                logSystemAction(`👑 قام الأدمن بتحديث وقفل رمز العبور الحصري لـ @${targetId} كـ [${code}]`);
+
+                const socketId = connectedSockets[targetId];
+                if (socketId) {
+                    io.to(socketId).emit('forceKick', '🚨 تم تحديث وتغيير رمز العبور الحصري الخاص بك من قبل الإدارة. يرجى الحصول على رمزك الجديد والولوج مجدداً.');
+                }
+            } else {
+                socket.emit('adminError', 'اللاعب المكتوب غير مسجل بقاعدة بيانات النظام.');
+            }
+        });
+
+        socket.on('adminRequestRename', async (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                socket.emit('adminError', '🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.');
+                return;
+            }
+            const { newName } = data;
+            const cleanNewName = newName.trim();
+            const oldId = socket.username.toLowerCase().trim().replace(/^@/, '');
+            const newId = cleanNewName.toLowerCase().trim().replace(/^@/, '');
+
+            if (!cleanNewName || cleanNewName === "" || cleanNewName.includes('@') || cleanNewName.includes('!')) {
+                socket.emit('avatarError', 'صيغة الاسم الجديد غير مصرح بها بالنظام.');
+                return;
+            }
+
+            const dbUser = await dbGet(`SELECT id FROM users WHERE id = ?`, [newId]);
+            if (dbUser) {
+                socket.emit('avatarError', 'اسم المستخدم الجديد محجوز ومستعمل مسبقاً للاعب آخر.');
+                return;
+            }
+
+            const userObj = await getUser(oldId, false);
+            if (!userObj) return;
+
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000;
+            if (!userObj.last_name_change_date || (now - userObj.last_name_change_date > oneWeek)) {
+                userObj.name_changes_count = 0;
+            }
+
+            if (userObj.name_changes_count >= 3) {
+                socket.emit('avatarError', 'لقد تجاوزت الحد الأقصى لتغيير الاسم المسموح به أسبوعياً (3 مرات).');
+                return;
+            }
+
+            userObj.name_changes_count = (userObj.name_changes_count || 0) + 1;
+            userObj.last_name_change_date = now;
+            
+            await dbRun(`UPDATE users SET id = ?, name_changes_count = ?, last_name_change_date = ? WHERE id = ?`, [
+                newId, userObj.name_changes_count, userObj.last_name_change_date, oldId
+            ]);
+
+            const socketId = connectedSockets[oldId];
+            delete connectedSockets[oldId];
+            connectedSockets[newId] = socketId;
+            socket.username = newId;
+
+            socket.emit('playerAuthSuccess', { username: cleanNewName, stats: await getUser(newId, false) });
+            io.emit('activeUsersList', Object.keys(connectedSockets));
+            logSystemAction(`قام اللاعب @${oldId} بتعديل وتغيير اسمه الفخري إلى: @${newId} (محاولة: ${userObj.name_changes_count}/3)`);
+            broadcastSystemMessage(`👑 تم تحديث معرّف المقاتل @${oldId} إلى معرّفه الحربي الجديد: *${cleanNewName}* 🔥`);
+        });
+
+        socket.on('adminRequestPartnerAction', async (data) => {
+            if (!socket.username) return;
+            const { command, args } = data;
+            await partners.handlePartnerCommand(socket.username, command, args);
+        });
+
+        socket.on('adminForceMessage', (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            const { targetUser, text } = data;
+            const targetId = targetUser.toLowerCase().trim().replace(/^@/, '');
+            const socketId = connectedSockets[targetId];
+            
+            if (socketId) {
+                io.to(socketId).emit('forceSendMessage', { text: text });
+                logSystemAction(`👑 قام الأدمن بحقن وإرسال رسالة قسرياً باسم اللاعب @${targetId}: ${text}`);
+            }
+        });
+
+        socket.on('adminTriggerEvent', async (category) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            await sendManualEvent(category);
+        });
+
+        socket.on('adminSkipEvent', () => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            clearTimeout(activeGameTimer);
+            activeGame = null;
+            broadcastSystemMessage('⏭️ تم تخطي وإلغاء الفعالية الرياضية الجارية عبر لوحة تحكم الأدمن.');
+        });
+
+        socket.on('adminClearWarnings', async (targetUser) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            const cleanTarget = targetUser.toLowerCase().trim().replace(/^@/, '');
+            await updateUser(cleanTarget, { warnings: 0, banned: false });
+            broadcastSystemMessage(`✅ تم تصفير إنذارات العضو @${cleanTarget} وإلغاء حظره، يرحب به النظام مجدداً بساحة اللعب!`);
+            await syncPlayerUI(cleanTarget);
+        });
+
+        socket.on('adminAdjustPoints', async (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            const { targetUser, change } = data;
+            const cleanTarget = targetUser.toLowerCase().trim().replace(/^@/, '');
+            const u = await getUser(cleanTarget, false);
+            if (u) {
+                await updateUser(cleanTarget, { points: u.points + parseInt(change) });
+                broadcastSystemMessage(`🛡️ تم تعديل رصيد @${cleanTarget} من قبل الإدارة بمقدار: ${change} نقاط.`);
+                io.emit('statsUpdate');
+                await syncPlayerUI(cleanTarget);
+            }
+        });
+
+        socket.on('adminAdjustDebts', async (data) => {
+            if (!PROTECTED_NUMBERS.includes(socket.username)) {
+                sendPrivateNotification(socket.username, "🔒 محاولة قرصنة محجوبة! لا تملك صلاحيات إدارية كافية لتنفيذ هذا الإجراء.");
+                return;
+            }
+            const { targetUser, amount, creditor } = data;
+            const cleanTarget = targetUser.toLowerCase().trim().replace(/^@/, '');
+            const cleanCreditor = creditor.toLowerCase().trim().replace(/^@/, '');
+            
+            const debtorObj = await getUser(cleanTarget, false);
+            const creditorObj = await getUser(cleanCreditor, false);
+            
+            if (debtorObj && creditorObj) {
+                await addDebt(cleanTarget, cleanCreditor, parseInt(amount));
+                broadcastSystemMessage(`🛡️ تم تسجيل دين إداري قسري على @${cleanTarget} لصالح @${cleanCreditor} بمقدار: ${amount} نقطة.`);
+                io.emit('statsUpdate');
+                await syncPlayerUI(cleanTarget);
+                await syncPlayerUI(cleanCreditor);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            if (socket.username) {
+                const id = socket.username.toLowerCase().trim().replace(/^@/, '');
+                logSystemAction(`اللاعب @${socket.username} غادر ساحة اللعب الفورية.`);
+                delete connectedSockets[socket.username];
+                typingUsers.delete(socket.username);
+                
+                dbRun(`DELETE FROM pending_challenges WHERE id = ? OR challenger_id = ?`, [id, id]).catch(() => {});
+                dbRun(`DELETE FROM pending_bets WHERE id = ? OR challenger_id = ?`, [id, id]).catch(() => {});
+                dbRun(`DELETE FROM active_challenges WHERE user_id = ? OR opponent_id = ?`, [id, id]).catch(() => {});
+                dbRun(`DELETE FROM active_bets WHERE challenger_id = ? OR opponent_id = ?`, [id, id]).catch(() => {});
+
+                io.emit('typingUsersList', Array.from(typingUsers));
+                io.emit('activeUsersList', Object.keys(connectedSockets));
+            }
+        });
+    });
+};

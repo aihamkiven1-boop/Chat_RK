@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>معركة عقول ديث نوت 📓</title>
+    <style>
+        :root {
+            --bg: #07070a;
+            --surface: #0e0e13;
+            --border-kira: #ef4444;
+            --border-l: #3b82f6;
+            --primary-glow: rgba(239, 68, 68, 0.25);
+            --l-glow: rgba(59, 130, 246, 0.25);
+            --text: #f4f4f5;
+            --text-muted: #71717a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Georgia', Georgia, 'Segoe UI', serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 16px;
+            overflow: hidden;
+            background-image: radial-gradient(circle at center, #111 0%, #050507 100%);
+        }
+
+        /* حاوية المواجهة الرأسية للعباقرة */
+        .duelists-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 35%;
+            margin-bottom: 15px;
+            gap: 15px;
+        }
+
+        .duelist-card {
+            width: 45%;
+            height: 100%;
+            background-color: var(--surface);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .duelist-card.kira {
+            border: 2px solid var(--border-kira);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .duelist-card.ryuzaki {
+            border: 2px solid var(--border-l);
+            box-shadow: 0 0 15px var(--l-glow);
+        }
+
+        /* تأثير التوهج عند تناوب دور الإجابة */
+        .duelist-card.active-turn.kira {
+            box-shadow: 0 0 25px #ef4444;
+            transform: scale(1.03);
+        }
+
+        .duelist-card.active-turn.ryuzaki {
+            box-shadow: 0 0 25px #3b82f6;
+            transform: scale(1.03);
+        }
+
+        .portrait {
+            font-size: 40px;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.1));
+        }
+
+        .duelist-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--text);
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .duelist-role {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .kira .duelist-role { color: var(--border-kira); }
+        .ryuzaki .duelist-role { color: var(--border-l); }
+
+        .score-counter {
+            font-size: 32px;
+            font-weight: 900;
+            margin-top: 8px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .versus-text {
+            font-size: 26px;
+            font-weight: 900;
+            font-style: italic;
+            color: #52525b;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        /* صندوق السؤال المركزي القوطي */
+        .mind-arena {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #0c0c11;
+            border: 1px solid #1f1f2e;
+            border-radius: 24px;
+            padding: 24px;
+            position: relative;
+            text-align: center;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .arena-round {
+            position: absolute;
+            top: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #a1a1aa;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-bottom: 1px dashed #27272a;
+            padding-bottom: 4px;
+        }
+
+        .arena-question {
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            max-width: 90%;
+            color: #cbd5e1;
+        }
+
+        /* شريط التوقيت النيون للذكاء */
+        .progress-bar-container {
+            width: 80%;
+            height: 6px;
+            background-color: #050507;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #18181b;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #ef4444 100%);
+            border-radius: 10px;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+        }
+
+        /* فقاعات الحوار التفاعلية للمساعدين الأذكياء */
+        .speech-bubble {
+            position: absolute;
+            bottom: -5px;
+            background-color: #18181b;
+            border: 1px solid #27272a;
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            display: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            animation: bounce 1s infinite alternate;
+            z-index: 10;
+        }
+
+        .kira .speech-bubble {
+            color: var(--border-kira);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .ryuzaki .speech-bubble {
+            color: var(--border-l);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- الساحة العليا للخصوم والتوقعات البصرية -->
+    <div class="duelists-container">
+        <!-- كارت ياغامي لايت -->
+        <div class="duelist-card kira" id="cardKira">
+            <div class="portrait">📓</div>
+            <span class="duelist-name" id="lblKiraName">-</span>
+            <span class="duelist-role">فريق لايت</span>
+            <span class="score-counter" id="lblKiraScore">0</span>
+            <div class="speech-bubble" id="bubbleKira">📓 لايت يكتب بالإنجيل...</div>
+        </div>
+
+        <div class="versus-text">vs</div>
+
+        <!-- كارت ريوزاكي L -->
+        <div class="duelist-card ryuzaki" id="cardRyuzaki">
+            <div class="portrait">🍭</div>
+            <span class="duelist-name" id="lblLName">-</span>
+            <span class="duelist-role">فريق ريوزاكي</span>
+            <span class="score-counter" id="lblLScore">0</span>
+            <div class="speech-bubble" id="bubbleRyuzaki">🍭 ريوزاكي يحلل منطقياً...</div>
+        </div>
+    </div>
+
+    <!-- الساحة السفلى لعرض الأسئلة الحسابية للذكاء -->
+    <div class="mind-arena">
+        <div class="arena-round" id="lblRound">ساحة ديث نوت الذكية 🔮</div>
+        <div class="arena-question" id="lblQuestionText">بانتظار تفاعل العقول وتحميل النزال التكتيكي...</div>
+
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="timerProgress"></div>
+        </div>
+    </div>
+
+    <script>
+        let maxTime = 15000; // 15 ثانية لكل سؤال
+        let timerInterval = null;
+        let timeRemaining = maxTime;
+
+        // التقاط بارامترات الهوية من الرابط
+        const urlParams = new URLSearchParams(window.location.search);
+        const me = urlParams.get('me') || "";
+        const challenger = urlParams.get('challenger') || "";
+        const opponent = urlParams.get('opponent') || "";
+
+        // تعيين الأسماء في الشاشة فوراً عند تحميل النزال
+        document.getElementById('lblKiraName').innerText = `@${challenger}`;
+        document.getElementById('lblLName').innerText = `@${opponent}`;
+
+        // الاستماع لأحداث تحديث السؤال والنتيجة محلياً (postMessage) من الشات
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data && data.type === 'ARENA_UPDATE') {
+                const state = data.state;
+
+                // تحديث العداد والنتيجة حياً
+                document.getElementById('lblKiraScore').innerText = state.challengerScore;
+                document.getElementById('lblLScore').innerText = state.opponentScore;
+
+                // تحديث رقم الجولة الحالية لديث نوت
+                document.getElementById('lblRound').innerText = `الجولة الذكية ${state.questionIndex + 1}/8 📓`;
+
+                // تحديث السؤال بمنتصف الحلبة القوطية
+                const currentQ = state.questions[state.questionIndex];
+                if (currentQ) {
+                    document.getElementById('lblQuestionText').innerText = currentQ.q;
+                }
+
+                // إدارة تبادل أدوار التنبيه البصري للمساعدين الذكيين (لايت و ريوزاكي L)
+                const isChallengerTurn = state.questionIndex % 2 === 0;
+                const cardKira = document.getElementById('cardKira');
+                const cardRyuzaki = document.getElementById('cardRyuzaki');
+                const bubbleKira = document.getElementById('bubbleKira');
+                const bubbleRyuzaki = document.getElementById('bubbleRyuzaki');
+
+                if (isChallengerTurn) {
+                    cardKira.classList.add('active-turn');
+                    cardRyuzaki.classList.remove('active-turn');
+                    bubbleKira.style.display = 'block';
+                    bubbleRyuzaki.style.display = 'none';
+                } else {
+                    cardRyuzaki.classList.add('active-turn');
+                    cardKira.classList.remove('active-turn');
+                    bubbleRyuzaki.style.display = 'block';
+                    bubbleKira.style.display = 'none';
+                }
+
+                // إطلاق عداد التوقيت التناقصي البصري
+                resetAndStartTimer();
+            }
+        });
+
+        // حركة العداد التناقصي بالمللي ثانية
+        function resetAndStartTimer() {
+            clearInterval(timerInterval);
+            timeRemaining = maxTime;
+            const progress = document.getElementById('timerProgress');
+            progress.style.width = '100%';
+
+            const step = 100;
+            timerInterval = setInterval(() => {
+                timeRemaining -= step;
+                const percentage = (timeRemaining / maxTime) * 100;
+                progress.style.width = `${percentage}%`;
+
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    progress.style.width = '0%';
+                }
+            }, step);
+        }
+    </script>
+</body>
+</html>

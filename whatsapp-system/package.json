@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-replacement-system",
+  "version": "1.0.0",
+  "description": "Real-time Buzzer and Leaderboard System with SQLite and Anime Partners",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3",
+    "sqlite3": "^5.1.7"
+  }
+}

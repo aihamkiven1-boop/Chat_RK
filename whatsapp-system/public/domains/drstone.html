@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>المختبر العلمي لدكتور ستون 🧪</title>
+    <style>
+        :root {
+            --bg: #030712;
+            --surface: #0b1329;
+            --border: #10b981;
+            --primary: #10b981;
+            --primary-glow: rgba(16, 185, 129, 0.4);
+            --danger: #ef4444;
+            --text: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            padding: 16px;
+        }
+
+        /* رأس الحلبة وعدادات النقاط للخصمين */
+        .arena-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--surface);
+            border: 2px solid var(--border);
+            box-shadow: 0 0 15px var(--primary-glow);
+            border-radius: 16px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            animation: pulseGlow 2s infinite alternate;
+        }
+
+        .player-hud {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 40%;
+        }
+
+        .player-hud.opponent {
+            flex-direction: row-reverse;
+            text-align: left;
+        }
+
+        .hud-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+            background-color: #070d19;
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .hud-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hud-name {
+            font-size: 15px;
+            font-weight: bold;
+            max-width: 110px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hud-score {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--primary);
+            text-shadow: 0 0 6px var(--primary-glow);
+        }
+
+        /* مواجهة المنتصف */
+        .versus-divider {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--danger);
+            text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+            font-style: italic;
+        }
+
+        /* صندوق السؤال والعداد التناقصي */
+        .question-arena {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background-color: #050a18;
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-radius: 20px;
+            padding: 24px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .question-index {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--primary);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        .question-title {
+            font-size: 22px;
+            font-weight: bold;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            max-width: 90%;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* شريط التوقيت التناقصي */
+        .timer-container {
+            width: 85%;
+            height: 10px;
+            background-color: #070d19;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            position: relative;
+        }
+
+        .timer-progress {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            border-radius: 10px;
+            box-shadow: 0 0 10px var(--primary-glow);
+            transition: width 0.1s linear;
+        }
+
+        /* أنميشن الاهتزاز والنبض للبيئة العلمية */
+        @keyframes pulseGlow {
+            from { box-shadow: 0 0 10px var(--primary-glow); }
+            to { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- الهيدر الاستعراضي للخصوم والنقاط -->
+    <div class="arena-header">
+        <div class="player-hud">
+            <div class="hud-avatar" id="challengerAvatar">-</div>
+            <div class="hud-meta">
+                <span class="hud-name" id="challengerName">-</span>
+                <span class="hud-score" id="challengerScore">0</span>
+            </div>
+        </div>
+
+        <div class="versus-divider">VS</div>
+
+        <div class="player-hud opponent">
+            <div class="hud-avatar" id="opponentAvatar">-</div>
+            <div class="hud-meta">
+                <span class="hud-name" id="opponentName">-</span>
+                <span class="hud-score" id="opponentScore">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ساحة عرض الأسئلة والعداد النبضي -->
+    <div class="question-arena">
+        <div class="question-index" id="lblQuestionIndex">جولة دكتور ستون العلمية 🧪</div>
+        <div class="question-title" id="lblQuestionText">بانتظار إعداد المختبر وطرح السؤال الأول...</div>
+        
+        <div class="timer-container">
+            <div class="timer-progress" id="timerProgress"></div>
+        </div>
+    </div>
+
+    <script>
+        let maxTime = 15000; // 15 ثانية لكل سؤال
+        let timerInterval = null;
+        let timeRemaining = maxTime;
+
+        // دالة سحب البارامترات من عنوان الرابط (URL Parameters) لتأسيس الهوية البصرية
+        const urlParams = new URLSearchParams(window.location.search);
+        const me = urlParams.get('me') || "";
+        const challenger = urlParams.get('challenger') || "";
+        const opponent = urlParams.get('opponent') || "";
+
+        // تعيين الأسماء في الشاشة فوراً عند التحميل
+        document.getElementById('challengerName').innerText = `@${challenger}`;
+        document.getElementById('opponentName').innerText = `@${opponent}`;
+        document.getElementById('challengerAvatar').innerText = challenger.charAt(0).toUpperCase();
+        document.getElementById('opponentAvatar').innerText = opponent.charAt(0).toUpperCase();
+
+        // جسر استقبال البيانات المحلي (postMessage) من صفحة player.html
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data && data.type === 'ARENA_UPDATE') {
+                const state = data.state;
+                
+                // تحديث الأرصدة والنقاط للخصمين حياً
+                document.getElementById('challengerScore').innerText = state.challengerScore;
+                document.getElementById('opponentScore').innerText = state.opponentScore;
+
+                // تحديث مؤشر السؤال الحالي
+                document.getElementById('lblQuestionIndex').innerText = `السؤال العلمى ${state.questionIndex + 1}/10 🧪`;
+                
+                // تحديث نص السؤال في الشاشة
+                const currentQ = state.questions[state.questionIndex];
+                if (currentQ) {
+                    document.getElementById('lblQuestionText').innerText = currentQ.q;
+                }
+
+                // إطلاق عداد التوقيت البصري التناقصي
+                resetAndStartTimer();
+            }
+        });
+
+        // دالة إدارة العداد التناقصي وحركته البصرية بمتوسط 100 مللي ثانية
+        function resetAndStartTimer() {
+            clearInterval(timerInterval);
+            timeRemaining = maxTime;
+            const progress = document.getElementById('timerProgress');
+            progress.style.width = '100%';
+            progress.style.backgroundColor = '#10b981';
+
+            const step = 100;
+            timerInterval = setInterval(() => {
+                timeRemaining -= step;
+                const percentage = (timeRemaining / maxTime) * 100;
+                progress.style.width = `${percentage}%`;
+
+                // تحويل لون العداد إلى الأحمر التحذيري عند بقاء أقل من 4 ثوانٍ
+                if (timeRemaining <= 4000) {
+                    progress.style.background = '#ef4444';
+                    progress.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.6)';
+                }
+
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    progress.style.width = '0%';
+                }
+            }, step);
+        }
+    </script>
+</body>
+</html>

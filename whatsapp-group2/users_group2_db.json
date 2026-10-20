@@ -1,0 +1,23 @@
+{
+  "105089863831652@lid": {
+    "points": 0,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "badge": "",
+    "has_entrance": false,
+    "has_insurance": 0,
+    "has_vault": false,
+    "vault_time": 0,
+    "has_double_xp": false,
+    "xp_boost_expiry": 0,
+    "has_welcome_sponsor": false,
+    "purchased_icon": false,
+    "has_stealer_trap": false
+  }
+}

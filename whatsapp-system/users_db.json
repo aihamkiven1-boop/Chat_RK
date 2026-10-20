@@ -1,0 +1,260 @@
+{
+  "محمد حافظ": {
+    "points": 20,
+    "warnings": 0,
+    "correctAnswers": 1,
+    "totalAttempts": 1,
+    "lastWin": 1780445385882,
+    "birthday": null,
+    "dailyGiftClaimed": "Wed Jun 03 2026",
+    "challengeWins": 0,
+    "debts": [],
+    "passcode": "777999",
+    "avatar": "/avatars/محمد حافظ.png?t=1780368275793",
+    "banned": false
+  },
+  "@الشيطان السماوي": {
+    "points": 10,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "avatar": "/avatars/@الشيطان السماوي.png?t=1780456540413",
+    "banned": false,
+    "passcode": "000555"
+  },
+  "aiham": {
+    "points": -45,
+    "warnings": 0,
+    "correctAnswers": 2,
+    "totalAttempts": 2,
+    "lastWin": 1780973019550,
+    "birthday": null,
+    "dailyGiftClaimed": "Tue Jun 09 2026",
+    "challengeWins": 6,
+    "debts": [],
+    "passcode": "000100",
+    "avatar": "/avatars/أيهم.png?t=1780368174943",
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    },
+    "nameChangesCount": 1,
+    "lastNameChangeDate": 1780964580279,
+    "banned": false
+  },
+  "higorma": {
+    "points": -25,
+    "warnings": 0,
+    "correctAnswers": 1,
+    "totalAttempts": 1,
+    "lastWin": 1780973102184,
+    "birthday": null,
+    "dailyGiftClaimed": "Tue Jun 09 2026",
+    "challengeWins": 0,
+    "debts": [],
+    "passcode": "111333",
+    "banned": false,
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    },
+    "avatar": "/avatars/الشيطان السماوي.png?t=1780966542384",
+    "nameChangesCount": 1,
+    "lastNameChangeDate": 1780970669341
+  },
+  "@higorma": {
+    "points": 10,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "avatar": null,
+    "banned": false,
+    "nameChangesCount": 0,
+    "lastNameChangeDate": null,
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    }
+  },
+  "@higorma دين": {
+    "points": 0,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "avatar": null,
+    "banned": false,
+    "nameChangesCount": 0,
+    "lastNameChangeDate": null,
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    }
+  },
+  "@higorma انمي": {
+    "points": 0,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "avatar": null,
+    "banned": false,
+    "nameChangesCount": 0,
+    "lastNameChangeDate": null,
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    }
+  },
+  "ايهم": {
+    "points": 0,
+    "warnings": 0,
+    "correctAnswers": 0,
+    "totalAttempts": 0,
+    "lastWin": null,
+    "birthday": null,
+    "dailyGiftClaimed": null,
+    "challengeWins": 0,
+    "debts": [],
+    "avatar": null,
+    "banned": false,
+    "nameChangesCount": 0,
+    "lastNameChangeDate": null,
+    "partners": {
+      "buggy": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false,
+        "skill3_unlocked": false,
+        "skill4_unlocked": false
+      },
+      "drstone": {
+        "owned": false,
+        "skill1_uses": 0,
+        "skill2_unlocked": false
+      },
+      "gojo": {
+        "owned": false
+      },
+      "light": {
+        "owned": false
+      },
+      "l": {
+        "owned": false
+      }
+    }
+  }
+}

@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>لوحة التحكم الإدارية - أيهم</title>
+    <style>
+        :root {
+            --bg: #070a13;
+            --surface: #0f1424;
+            --surface-accent: #17203a;
+            --border: #222e4f;
+            --primary: #0ea5e9;
+            --primary-glow: rgba(14, 165, 233, 0.35);
+            --success: #10b981;
+            --danger: #f43f5e;
+            --warning: #f59e0b;
+            --text: #f8fafc;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #080d1e; /* لون كحلي ليلي نيوني فاخر يمنع تضارب الفواصل بالأسفل */
+            color: var(--text);
+            height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .login-box {
+            background: linear-gradient(135deg, var(--surface) 0%, #131b31 100%);
+            padding: 30px 24px;
+            border-radius: 20px;
+            text-align: center;
+            width: 90%;
+            max-width: 380px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border);
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .login-box h1 {
+            color: var(--primary);
+            font-size: 26px;
+            margin-bottom: 12px;
+            text-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .login-box p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .login-error-msg {
+            background-color: rgba(244, 63, 94, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: none;
+            text-align: right;
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 14px;
+            background-color: #080c16;
+            border: 2px solid var(--border);
+            color: var(--text);
+            border-radius: 10px;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 15px;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            outline: none;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+            background-color: #0284c7;
+        }
+
+        .main-container {
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            background-color: var(--bg);
+            animation: fadeIn 0.4s ease-out;
+            position: relative;
+        }
+
+        .app-header {
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        .online-users-bar {
+            background-color: #0b1120;
+            border-bottom: 1px solid var(--border);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .online-users-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .online-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .online-list {
+            display: flex;
+            gap: 8px;
+        }
+
+        .online-pill {
+            background-color: rgba(14, 165, 233, 0.12);
+            color: var(--primary);
+            border: 1px solid rgba(14, 165, 233, 0.25);
+            font-size: 12px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .avatar {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary) 0%, #00d2ff 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #fff;
+            box-shadow: 0 0 10px var(--primary-glow);
+            cursor: pointer;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            border: 2px solid var(--border);
+        }
+
+        .user-meta {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .username-text {
+            font-size: 15px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .points-badge {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: bold;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            display: inline-block;
+            margin-top: 2px;
+        }
+
+        .warning-badge {
+            background-color: rgba(244, 63, 94, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .chat-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background-color: #060912;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .messages-container {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        .msg {
+            padding: 12px 16px;
+            border-radius: 16px;
+            max-width: 85%;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            animation: scaleIn 0.2s ease-out;
+        }
+
+        .msg-system {
+            background-color: rgba(15, 20, 36, 0.85);
+            border: 1px solid var(--border);
+            color: #cbd5e1;
+            align-self: center;
+            text-align: center;
+            max-width: 95%;
+            font-size: 13px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .msg-other {
+            background-color: var(--surface-accent);
+            color: var(--text);
+            align-self: flex-start;
+            border-bottom-right-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .msg-me {
+            background: linear-gradient(135deg, var(--primary) 0%, #0369a1 100%);
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 3px 10px rgba(14, 165, 233, 0.2);
+        }
+
+        .msg strong {
+            display: block;
+            font-size: 11px;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .msg-me strong {
+            color: #93c5fd;
+        }
+
+        .typing-indicator-bar {
+            background-color: rgba(15, 20, 36, 0.6);
+            border-top: 1px solid rgba(255, 255, 255, 0.02);
+            color: var(--primary);
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .mention-dropdown {
+            position: absolute;
+            bottom: 75px;
+            left: 16px;
+            right: 16px;
+            background-color: #0f1424;
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            max-height: 160px;
+            overflow-y: auto;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 -8px 25px rgba(0,0,0,0.6);
+            z-index: 1000;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .mention-item {
+            padding: 12px 18px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            font-size: 14px;
+            color: var(--text);
+            text-align: right;
+            transition: background-color 0.15s;
+        }
+
+        .mention-item:active {
+            background-color: var(--surface-accent);
+            color: var(--primary);
+        }
+
+        .input-bar {
+            padding: 12px 16px;
+            background-color: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            position: relative;
+        }
+
+        .input-bar input {
+            flex-grow: 1;
+            padding: 14px;
+            background-color: #080c16;
+            border: 1px solid var(--border);
+            color: #fff;
+            border-radius: 25px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-bar input:focus {
+            border-color: var(--primary);
+        }
+
+        .input-bar button {
+            width: auto;
+            border-radius: 25px;
+            padding: 12px 24px;
+        }
+
+        /* لوح غطاء خلفي عائم مرن للغاية للهواتف بدلاً من dialog الصارم لمنع تعليق الكيبورد والسحب */
+        .admin-verification-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(7, 10, 19, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .admin-verification-card {
+            background-color: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            box-shadow: 0 0 25px rgba(0, 210, 255, 0.4);
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-height: 85vh;
+            overflow-y: auto; /* دعم السحب القصور الذاتي السلس للغاية باللمس */
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .private-alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        .private-alert-card {
+            background-color: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .private-alert-card h3 {
+            color: var(--primary);
+            margin-bottom: 12px;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .private-alert-body {
+            font-size: 14px;
+            color: var(--text);
+            line-height: 1.6;
+            margin-bottom: 20px;
+            text-align: right;
+            overflow-y: auto;
+            flex-grow: 1;
+            padding-left: 6px;
+        }
+
+        .private-alert-body::-webkit-scrollbar {
+            width: 4px;
+        }
+        .private-alert-body::-webkit-scrollbar-thumb {
+            background-color: var(--border);
+            border-radius: 10px;
+        }
+
+        .profile-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+        }
+
+        .profile-modal-card {
+            background-color: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 24px;
+            padding: 25px 16px;
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .profile-modal-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, #00d2ff 100%);
+            margin: 0 auto 15px auto;
+            border: 3px solid var(--border);
+            box-shadow: 0 0 15px var(--primary-glow);
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 32px;
+            color: white;
+        }
+
+        .profile-modal-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 5px;
+        }
+
+        .profile-modal-rank {
+            font-size: 13px;
+            color: var(--primary);
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .profile-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .profile-stat-box {
+            background-color: #080c16;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .profile-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+
+        .profile-stat-val {
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        .partners-shop-section {
+            border-top: 1px dashed var(--border);
+            padding-top: 15px;
+            margin-top: 15px;
+            text-align: right;
+        }
+
+        .partners-shop-section h4 {
+            color: var(--primary);
+            font-size: 13px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .partners-grid-hud {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .partner-card-hud {
+            background-color: #080c16;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 8px 4px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--text-muted);
+        }
+
+        .partner-card-hud.locked {
+            opacity: 0.45;
+            filter: grayscale(1);
+        }
+
+        .partner-card-hud.owned {
+            border-color: var(--success);
+            color: var(--success);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+        }
+
+        .partner-card-hud:active {
+            transform: scale(0.95);
+        }
+
+        .dev-mode-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, #1e1b4b 0%, #31102f 100%);
+            border-bottom: 2px solid var(--warning);
+            color: var(--text);
+            text-align: center;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        /* [مطور ومصحح] أنماط الـ CSS المفقودة كلياً لتنسيق وعرض الحلبات البصرية كاملة الشاشة */
+        .visual-arena-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(7, 10, 19, 0.95);
+            backdrop-filter: blur(10px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 2500;
+            padding: 10px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .arena-frame-container {
+            width: 100%;
+            flex-grow: 1;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            box-shadow: 0 0 25px var(--primary-glow);
+            background-color: #060912;
+            position: relative;
+        }
+
+        .arena-frame-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<input type="file" id="avatarFileInput" accept="image/*" style="display: none;" />
+
+<div id="privateAlertOverlay" class="private-alert-overlay">
+    <div class="private-alert-card">
+        <h3>✉️ تنبيه خاص من النظام</h3>
+        <div id="privateAlertText" class="private-alert-body"></div>
+        <button class="btn" style="flex-shrink: 0;" onclick="closePrivateAlert()">تأكيد واستمرار</button>
+    </div>
+</div>
+
+<!-- لوحة التنبيه العلوية العائمة لسيناريو اتصال المطور بالمساعد وحظر الآخرين -->
+<div id="devModeBanner" class="dev-mode-banner">
+    ⚠️ تنبيه: تم إيقاف وقفل صندوق الرسائل للجميع بطلب من المطور؛ نظراً لاستدعائه المساعد الخاص بقلب الصفحة حالياً... يرجى الصبر ⏱️
+</div>
+
+<!-- لوحة التغطية المخصصة للتصويت بـ Div مرن وسلس جداً باللمس بالهواتف -->
+<div id="devAbsentConfirmOverlay" class="admin-verification-overlay">
+    <div class="admin-verification-card">
+        <h3 style="color: var(--warning); margin-bottom: 10px;">🔔 تأكيد غياب المطور</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;">
+            يرجى التأكيد: هل تتفقون جميعاً على أن المطور والمدير غائب حالياً لرفع الحظر وقفل استماع المساعد لـ 60 ثانية؟
+        </p>
+        <button class="btn btn-success" style="margin-bottom: 12px;" onclick="agreeDevAbsent()">نعم، المطور غائب وموافق ✅</button>
+    </div>
+</div>
+
+<!-- لوح التغطية المرن الخاص بالتحقق من المدير بـ Div لمنع تصلب السحب بترمكس على الهاتف -->
+<div id="adminVerificationOverlay" class="admin-verification-overlay">
+    <div class="admin-verification-card">
+        <h3 style="color: var(--primary); margin-bottom: 10px;">🔒 إثبات هوية المطور</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;" id="lblVerificationIntro">
+            مرحباً بك أيها المدير العظيم! أعتذر عن ظهوري المفاجئ هذا، ولكنك أطلقت أمر استدعائي؛ من أجل التحقق من هوية المدير الحقيقي للساحة ومنع انتحال اسمك.
+        </p>
+        
+        <div id="pnlAttempts" style="display: block;">
+            <input type="password" id="adminPassInput" placeholder="أدخل كلمة مرور المطور الموحدة..." autocomplete="off" style="margin-bottom: 15px;" />
+            <div id="lblVerifyError" style="font-size: 12px; color: var(--danger); font-weight: bold; margin-bottom: 15px; text-align: right; display: none;"></div>
+            
+            <button class="btn btn-primary" style="margin-bottom: 12px;" onclick="verifyAdminPasscode()">تحقق وإثبات الهوية 🔑</button>
+            <button class="btn" style="background-color: var(--surface-accent); border: 1px solid var(--border);" onclick="notDeveloperAction()">لست أنا المطور 🚪</button>
+        </div>
+
+        <!-- لوح العداد التنازلي المطور لـ 5 ثوانٍ عند النجاح للتنبيه المضحك قبل الإغلاق -->
+        <div id="pnlSuccessCountdown" style="display: none;">
+            <div style="font-size: 24px; font-weight: bold; color: var(--success); margin-bottom: 10px;" id="lblCountdownTimer">5</div>
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;" id="lblSuccessMessage"></p>
+        </div>
+    </div>
+</div>
+
+<!-- لوحة الحلبة البصرية للنزالات والمواجهات الثنائية -->
+<div id="visualArenaOverlay" class="visual-arena-overlay">
+    <div id="visualArenaFrameContainer" class="arena-frame-container"></div>
+    <div class="input-bar" style="background-color: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; gap: 10px;">
+        <input type="text" id="arenaChatInput" placeholder="اكتب إجابتك هنا للنزال بسرعة..." autocomplete="off" onkeypress="handleArenaKeyPress(event)" />
+        <button class="btn" onclick="sendArenaMessage()" style="width: auto; padding: 12px 24px; border-radius: 25px;">إرسال</button>
+    </div>
+</div>
+
+<div id="profileModalOverlay" class="profile-modal-overlay">
+    <div class="profile-modal-card">
+        <div class="profile-modal-avatar" id="modalAvatar">-</div>
+        <div class="profile-modal-name" id="modalName">-</div>
+        <div class="profile-modal-rank" id="modalRank">-</div>
+        
+        <div class="profile-stats-grid">
+            <div class="profile-stat-box">
+                <div class="profile-stat-label">المحفظة المالية</div>
+                <div class="profile-stat-val" id="modalPoints" style="color: var(--success);">0 نقطة</div>
+            </div>
+            <div class="profile-stat-box">
+                <div class="profile-stat-label">عداد الإنذارات</div>
+                <div class="profile-stat-val" id="modalWarnings" style="color: var(--danger);">0/3</div>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+            <input type="text" id="newUsernameInput" placeholder="تعديل اسم المستخدم..." style="margin-bottom: 10px;" autocomplete="off" />
+            <button class="btn" style="padding: 10px; font-size: 14px;" onclick="requestRename()">تحديث الاسم ✏️</button>
+            <div style="font-size: 11px; color: var(--warning); text-align: right; margin-top: 4px;">⚠️ تنبيه: يسمح بتغيير الاسم 3 مرات أسبوعياً فقط.</div>
+        </div>
+
+        <div class="partners-shop-section">
+            <h4>🛡️ كتيبة الشركاء والبطاقات الرقمية للأنمي:</h4>
+            <div class="partners-grid-hud" id="partnersGrid"></div>
+        </div>
+
+        <button class="btn" style="margin-bottom: 12px; background-color: var(--surface-accent); border: 1px solid var(--border);" onclick="triggerAvatarUpload()">تغيير الصورة الشخصية 🖼️</button>
+        <button class="btn" style="margin-bottom: 12px; background-color: var(--danger);" onclick="logout()">تسجيل الخروج 🚪</button>
+        <button class="btn" style="background-color: var(--surface-accent); color: white; border: 1px solid var(--border);" onclick="closeProfileModal()">إغلاق اللوحة</button>
+    </div>
+</div>
+
+<div class="login-box" id="loginBox">
+    <h1>بوابة فرسان الحرب ⚔️</h1>
+    <p>أدخل اسمك ورمز العبور المعتمد للولوج المباشر:</p>
+    
+    <div class="login-error-msg" id="loginErrorMsg"></div>
+
+    <input type="text" id="usernameInput" placeholder="أدخل اسمك الفخري..." autocomplete="off" />
+    <input type="text" id="passcodeInput" placeholder="أدخل رمز العبور (Passcode)..." autocomplete="off" />
+    <button class="btn" onclick="login()">دخول الساحة</button>
+</div>
+
+<div class="main-container" id="gameContainer">
+    <header class="app-header">
+        <div class="user-profile">
+            <div class="avatar" id="userAvatar" onclick="openProfileModal()">-</div>
+            <div class="user-meta">
+                <span id="lblUsername" class="username-text">-</span>
+                <span id="lblPoints" class="points-badge">0 نقطة</span>
+            </div>
+        </div>
+        <div>
+            <!-- عداد تنازلي خاطف لفعاليات وتحديات السرعة بقمة الهيدر -->
+            <div id="speedChallengeTimer" style="display: none; align-items: center; gap: 6px; background-color: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); padding: 4px 12px; border-radius: 20px; font-weight: bold; color: var(--danger); font-size: 13px;">
+                ⚡ تحدي السرعة التنازلي: <span id="lblSpeedCountdown">10</span> ثوانٍ!
+            </div>
+            <span id="lblWarnings" class="warning-badge">إنذارات: 0/3</span>
+        </div>
+    </header>
+
+    <div class="online-users-bar">
+        <div class="online-label">
+            <span>●</span>
+            <span>المتصلون:</span>
+        </div>
+        <div class="online-list" id="onlineUsersList"></div>
+    </div>
+
+    <div class="chat-area">
+        <div class="mention-dropdown" id="mentionDropdown"></div>
+
+        <div class="messages-container" id="messagesBox"></div>
+        
+        <div class="typing-indicator-bar" id="typingIndicatorBar"></div>
+
+        <div class="input-bar">
+            <input type="text" id="chatInput" placeholder="اكتب إجابتك أو أوامرك هنا..." onkeypress="handleKeyPress(event)" autocomplete="off" />
+            <button id="btnSendMessage" class="btn" onclick="sendMessage()">إرسال</button>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        transports: ['websocket']
+    });
+
+    let currentUsername = "";
+    let typingTimeout;
+    let activeOnlineUsers = [];
+    let clientStats = {};
+    
+    // متغيرات تتبع حالة الـ 3 محاولات التحذيرية التفاعلية للرمز السري
+    let verificationAttempts = 0;
+    let currentInfectedUser = ""; // اسم المستخدم المشتبه بانتحاله لهوية المدير
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            if (!socket.connected) {
+                socket.close(); 
+                socket.open();  
+            }
+        }
+    });
+
+    socket.on('connect', () => {
+        const savedUser = localStorage.getItem('player_username');
+        const savedCode = localStorage.getItem('player_passcode');
+        if (savedUser && savedCode) {
+            currentUsername = savedUser;
+            socket.emit('playerLogin', { username: savedUser, passcode: savedCode });
+        }
+    });
+
+    function login() {
+        const username = document.getElementById('usernameInput').value.trim();
+        const passcode = document.getElementById('passcodeInput').value.trim();
+        const errDiv = document.getElementById('loginErrorMsg');
+        
+        errDiv.style.display = 'none';
+
+        if (!username || !passcode) {
+            errDiv.innerText = '⚠️ يرجى إدخال اسمك ورمز العبور الخاص بك معاً.';
+            errDiv.style.display = 'block';
+            return;
+        }
+
+        currentUsername = username;
+        socket.emit('playerLogin', { username: currentUsername, passcode: passcode });
+    }
+
+    socket.on('playerAuthSuccess', (data) => {
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'flex';
+        closeProfileModal();
+
+        clientStats = data.stats;
+        currentUsername = data.username;
+
+        document.getElementById('lblUsername').innerText = data.username;
+        document.getElementById('lblPoints').innerText = `${data.stats.points} نقطة`;
+        document.getElementById('lblWarnings').innerText = `إنذارات: ${data.stats.warnings}/3`;
+        
+        localStorage.setItem('player_username', data.username);
+        const inputCode = document.getElementById('passcodeInput').value.trim();
+        if (inputCode) localStorage.setItem('player_passcode', inputCode);
+
+        renderAvatar(data.stats.avatar, data.username);
+        
+        const welcomeMsg = `👋 أهلاً بك يا @${data.username} في بوابة النظام الكبرى! اكتب !اوامر لرؤية ما يمكنك فعله.`;
+        appendMessage({ sender: "النظام", text: welcomeMsg, isSystem: true });
+        
+        bindKeyboardMonitor();
+        setupAvatarFileListener();
+        setupMentionInputListener();
+
+        // طلب إذن عرض الإشعارات بالهاتف فور تسجيل الدخول بنجاح
+        if (window.Notification && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    console.log("تمت الموافقة على تفعيل الإشعارات الأصلية للهاتف بنجاح!");
+                }
+            });
+        }
+    });
+
+    socket.on('playerUpdate', (data) => {
+        clientStats.points = data.points;
+        clientStats.warnings = data.warnings;
+        clientStats.avatar = data.avatar;
+        clientStats.partners = data.partners;
+
+        document.getElementById('lblPoints').innerText = `${data.points} نقطة`;
+        document.getElementById('lblWarnings').innerText = `إنذارات: ${data.warnings}/3`;
+        renderAvatar(data.avatar, currentUsername);
+    });
+
+    socket.on('chatHistory', (history) => {
+        const box = document.getElementById('messagesBox');
+        box.innerHTML = '';
+        history.forEach(data => {
+            appendMessage(data);
+        });
+    });
+
+    socket.on('loginError', (message) => {
+        localStorage.removeItem('player_username');
+        localStorage.removeItem('player_passcode');
+
+        const errDiv = document.getElementById('loginErrorMsg');
+        errDiv.innerText = `🚫 ${message}`;
+        errDiv.style.display = 'block';
+    });
+
+    socket.on('activeUsersList', (users) => {
+        activeOnlineUsers = users;
+        const list = document.getElementById('onlineUsersList');
+        list.innerHTML = '';
+        
+        if (users.length === 0) {
+            list.innerHTML = `<span style="color: var(--text-muted); font-size:11px;">لا يوجد أحد متصل</span>`;
+            return;
+        }
+
+        users.forEach(user => {
+            const pill = document.createElement('span');
+            pill.className = "online-pill";
+            pill.innerText = user;
+            list.appendChild(pill);
+        });
+    });
+
+    function bindKeyboardMonitor() {
+        const chatInput = document.getElementById('chatInput');
+        chatInput.addEventListener('input', (e) => {
+            socket.emit('clientInputSync', { text: e.target.value });
+            clearTimeout(typingTimeout);
+            
+            if (e.target.value.trim() !== "") {
+                typingTimeout = setTimeout(() => {
+                    socket.emit('clientInputSync', { text: "" });
+                }, 2000); 
+            }
+        });
+    }
+
+    socket.on('typingUsersList', (usersList) => {
+        const bar = document.getElementById('typingIndicatorBar');
+        const othersTyping = usersList.filter(u => u.toLowerCase() !== currentUsername.toLowerCase());
+        
+        if (othersTyping.length === 0) {
+            bar.style.display = "none";
+            bar.innerHTML = "";
+            return;
+        }
+
+        bar.style.display = "flex";
+        if (othersTyping.length === 1) {
+            bar.innerHTML = `💬 <span style="color: var(--primary);">@${othersTyping[0]}</span> يكتب الآن...`;
+        } else {
+            bar.innerHTML = `💬 عمالقة يكتبون الآن بساحة اللعب...`;
+        }
+    });
+
+    function setupMentionInputListener() {
+        const input = document.getElementById('chatInput');
+        input.addEventListener('keyup', (e) => {
+            const val = e.target.value;
+            const words = val.split(' ');
+            const lastWord = words[words.length - 1];
+
+            if (lastWord.startsWith('@')) {
+                const query = lastWord.slice(1);
+                showMentionDropdown(query);
+            } else {
+                hideMentionDropdown();
+            }
+        });
+    }
+
+    function showMentionDropdown(searchQuery) {
+        const dropdown = document.getElementById('mentionDropdown');
+        dropdown.innerHTML = '';
+
+        const filtered = activeOnlineUsers.filter(u => u.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        if (filtered.length === 0) {
+            hideMentionDropdown();
+            return;
+        }
+
+        dropdown.style.display = 'flex';
+        filtered.forEach(user => {
+            const item = document.createElement('div');
+            item.className = 'mention-item';
+            item.innerText = user;
+            item.onclick = () => {
+                insertMention(user);
+            };
+            dropdown.appendChild(item);
+        });
+    }
+
+    function hideMentionDropdown() {
+        document.getElementById('mentionDropdown').style.display = 'none';
+    }
+
+    function insertMention(username) {
+        const input = document.getElementById('chatInput');
+        const val = input.value;
+        const words = val.split(' ');
+        
+        words[words.length - 1] = '@' + username + ' ';
+        input.value = words.join(' ');
+        
+        hideMentionDropdown();
+        input.focus();
+    }
+
+    function triggerAvatarUpload() {
+        document.getElementById('avatarFileInput').click();
+    }
+
+    function setupAvatarFileListener() {
+        const fileInput = document.getElementById('avatarFileInput');
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 120;
+                    canvas.height = 120;
+                    
+                    ctx.drawImage(img, 0, 0, 120, 120);
+                    const compressedBase64 = canvas.toDataURL('image/png');
+                    
+                    socket.emit('uploadAvatar', { base64Image: compressedBase64 });
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // دالة تعقيم لمنع هجمات حقن الأكواد الخبيثة XSS بالشات وحماية المتصفحات تماماً
+    function escapeHtml(text) {
+        if (!text) return "";
+        return text
+            .toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function renderAvatar(avatarUrl, username) {
+        const avatarDiv = document.getElementById('userAvatar');
+        if (avatarUrl) {
+            avatarDiv.style.backgroundImage = `url('${avatarUrl}')`;
+            avatarDiv.innerText = '';
+        } else {
+            avatarDiv.style.backgroundImage = 'none';
+            avatarDiv.innerText = username.charAt(0).toUpperCase();
+        }
+    }
+
+    const RANKS = [
+        { name: '🆕 عابر مستجد', minPoints: 0 },
+        { name: '🗡️ مقاتل نشط', minPoints: 100 },
+        { name: '🛡️ كاسر النخبة', minPoints: 300 },
+        { name: '🏅 جنرال مهيب', minPoints: 500 },
+        { name: '👑 إمبراطور الحرب', minPoints: 1000 },
+        { name: '🌌 أسطورة سرمدية', minPoints: 2000 }
+    ];
+
+    function getRankName(pts) {
+        let rank = RANKS[0];
+        for (const r of RANKS) {
+            if (pts >= r.minPoints) rank = r;
+        }
+        return rank.name;
+    }
+
+    function openProfileModal() {
+        const overlay = document.getElementById('profileModalOverlay');
+        const modalAvatar = document.getElementById('modalAvatar');
+        
+        document.getElementById('modalName').innerText = `@${currentUsername}`;
+        document.getElementById('modalRank').innerText = getRankName(clientStats.points);
+        document.getElementById('modalPoints').innerText = `${clientStats.points} نقطة`;
+        document.getElementById('modalWarnings').innerText = `${clientStats.warnings}/3`;
+
+        if (clientStats.avatar) {
+            modalAvatar.style.backgroundImage = `url('${clientStats.avatar}')`;
+            modalAvatar.innerText = '';
+        } else {
+            modalAvatar.style.backgroundImage = 'none';
+            modalAvatar.innerText = currentUsername.charAt(0).toUpperCase();
+        }
+
+        renderPartnersGrid();
+        overlay.style.display = 'flex';
+    }
+
+    function renderPartnersGrid() {
+        const grid = document.getElementById('partnersGrid');
+        grid.innerHTML = '';
+
+        const partnerNames = ['buggy', 'drstone', 'gojo', 'light', 'l'];
+        const arabicNames = { buggy: 'باجي 🃏', drstone: 'سينكو 🧬', gojo: 'غوجو 🌌', light: 'لايت 📓', l: 'ريوزاكي L 🍭' };
+
+        partnerNames.forEach(name => {
+            const p = clientStats.partners[name] || { owned: false };
+            const card = document.createElement('div');
+            
+            if (p.owned) {
+                card.className = "partner-card-hud owned";
+                card.innerHTML = `${arabicNames[name]}<br><span style="font-size:8px; color:var(--success);">مملوك 🔓</span>`;
+                card.onclick = () => {
+                    usePartnerAbility(name, p);
+                };
+            } else {
+                card.className = "partner-card-hud locked";
+                card.innerHTML = `${arabicNames[name]}<br><span style="font-size:8px; color:var(--text-muted);">600 نقطة 🔒</span>`;
+                card.onclick = () => {
+                    buyPartner(name);
+                };
+            }
+            grid.appendChild(card);
+        });
+    }
+
+    function buyPartner(name) {
+        if (confirm(`هل أنت متأكد من شراء الشريك الرقمي [ ${name.toUpperCase()} ] مقابل 600 نقطة من محفظتك؟`)) {
+            socket.emit('adminRequestPartnerAction', { command: 'شراء', args: [name] });
+            closeProfileModal();
+        }
+    }
+
+    function usePartnerAbility(name, pData) {
+        if (name === 'buggy') {
+            let choice = prompt(`⚙️ اختر بطاقة المهرج باجي المخادعة لتفعيلها:\n\n1. التبديل والاختفاء (10 نقاط) 🃏\n2. التجميد الزمني للشات (15 نقطة) ⏱️\n3. سرقة مكافأة الإجابة القادمة (20 نقطة) 💰\n4. تركيب درع حماية النقاط (10 نقاط) 🛡️`);
+            if (choice) {
+                socket.emit('adminRequestPartnerAction', { command: 'باجي', args: [choice] });
+                closeProfileModal();
+            }
+        } else if (name === 'drstone') {
+            let skillChoice = prompt(`⚙️ اختر مهارة دكتور ستون سينكو لتفعيلها:\n\n1. إطلاق المجال العلمي لمنافس (15 نقطة) 🧬\n2. تضليل كلمات الإجابة للخصم القادم (5 نقاط) 🧪`);
+            if (skillChoice === '1') {
+                let opponent = prompt("🔍 اكتب اسم الخصم المتصل بدقة لسحبه لداخل نزال العلوم الثنائي:");
+                if (opponent) {
+                    socket.emit('adminRequestPartnerAction', { command: 'ستون', args: ['1', opponent] });
+                    closeProfileModal();
+                }
+            } else if (skillChoice === '2') {
+                socket.emit('adminRequestPartnerAction', { command: 'ستون', args: ['2'] });
+                closeProfileModal();
+            }
+        } else if (name === 'gojo') {
+            if (confirm("🌌 هل تريد إطلاق تسييج المجال (الفراغ اللانهائي) لساتورو غوجو مقابل 10 نقاط لشل الخصوم؟")) {
+                socket.emit('adminRequestPartnerAction', { command: 'غوجو', args: [] });
+                closeProfileModal();
+            }
+        } else if (name === 'light' || name === 'l') {
+            let opponent = prompt("🔮 اكتب اسم الخصم العبقري لتحديه في نزال ديث نوت الثنائي المشترك (2 ضد 2):");
+            if (opponent) {
+                socket.emit('adminRequestPartnerAction', { command: 'ذكاء', args: [opponent] });
+                closeProfileModal();
+            }
+        }
+    }
+
+    function closeProfileModal() {
+        document.getElementById('profileModalOverlay').style.display = 'none';
+        document.getElementById('newUsernameInput').value = "";
+    }
+
+    function requestRename() {
+        const newName = document.getElementById('newUsernameInput').value.trim();
+        if (!newName || newName === "") {
+            alert('يرجى كتابة الاسم الجديد أولاً للتحويل.');
+            return;
+        }
+        socket.emit('adminRequestRename', { newName: newName });
+    }
+
+    function logout() {
+        localStorage.removeItem('player_username');
+        localStorage.removeItem('player_passcode');
+        location.reload();
+    }
+
+    socket.on('forceSendMessage', (data) => {
+        const chatInput = document.getElementById('chatInput');
+        chatInput.value = data.text;
+        socket.emit('clientInputSync', { text: "" });
+        sendMessage();
+    });
+
+    function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        socket.emit('sendMessage', { text: text });
+        input.value = "";
+        socket.emit('clientInputSync', { text: "" });
+        
+        clearTimeout(typingTimeout);
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    }
+
+    function formatAsteriskToBold(text) {
+        if (!text) return "";
+        return text.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+    }
+
+    function appendMessage(data) {
+        const box = document.getElementById('messagesBox');
+        const msgDiv = document.createElement('div');
+        
+        const sender = data.sender || "مجهول";
+        const text = data.text || "";
+        const currentU = currentUsername || "";
+
+        // لا نقوم بإعادة تعقيم نص الرسالة هنا بالعميل لتلافي خطأ التعقيم المزدوج (Double Escaping)
+        // لأن السيرفر يعقمها تلقائياً من المنبع قبل البث، بينما نعقم فقط اسم المرسل أماناً
+        const escapedSender = escapeHtml(sender);
+
+        if (data.isSystem) {
+            msgDiv.className = "msg msg-system";
+            msgDiv.innerHTML = `📢 <strong>${escapedSender}</strong>${formatAsteriskToBold(text.replace(/\n/g, '<br>'))}`;
+        } else {
+            const isMe = escapedSender.toLowerCase() === currentU.toLowerCase();
+            msgDiv.className = isMe ? "msg msg-me" : "msg msg-other";
+            msgDiv.innerHTML = `<strong>${escapedSender}</strong>${formatAsteriskToBold(text)}`;
+        }
+        
+        box.appendChild(msgDiv);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    socket.on('chatMessage', (data) => {
+        appendMessage(data);
+    });
+
+    // دالة لتخليق رنين إلكتروني متميز تفاعلياً بدون استهلاك ملفات خارجية عبر معالج صوت الهاتف
+    function playNudgeSound() {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // النغمة الأولى (تردد متوسط)
+            let osc1 = audioCtx.createOscillator();
+            let gain1 = audioCtx.createGain();
+            osc1.connect(gain1);
+            gain1.connect(audioCtx.destination);
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); // نغمة D5 دافئة
+            gain1.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            
+            // النغمة الثانية (إزاحة وتناغم جرس أسطوري)
+            let osc2 = audioCtx.createOscillator();
+            let gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // نغمة A5 حادة لشد الانتباه
+            gain2.gain.setValueAtTime(0.15, audioCtx.currentTime + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.68);
+            
+            osc1.start(audioCtx.currentTime);
+            osc1.stop(audioCtx.currentTime + 0.6);
+            osc2.start(audioCtx.currentTime + 0.08);
+            osc2.stop(audioCtx.currentTime + 0.68);
+        } catch (e) {
+            console.error("Audio Synthesis error: ", e);
+        }
+    }
+
+    // استماع لحدث النكز بالمنشن من السيرفر
+    socket.on('incomingNudge', (data) => {
+        const sender = data.sender;
+        
+        // 1. تشغيل الرنين الذكي المتولد ذاتياً
+        playNudgeSound();
+        
+        // 2. إطلاق الاهتزاز الحسي للأجهزة المتوافقة
+        if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200]);
+        }
+        
+        // 3. التحقق مما إذا كان اللاعب يتصفح مكاناً آخر أو شاشته مغلقة
+        if (document.hidden || document.visibilityState === 'hidden') {
+            if (window.Notification && Notification.permission === 'granted') {
+                const notify = new Notification(`🎯 نكزة حامية من @${sender}`, {
+                    body: "قام بنكزك وتنبيهك للعب الآن بساحة المعركة! ⚔️",
+                    icon: clientStats.avatar || "/favicon.ico",
+                    tag: "nudge-alert",
+                    requireInteraction: true
+                });
+                
+                notify.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+            }
+        } else {
+            // تنبيه منبثق فخم بداخل الشاشة إذا كان يتصفح اللعبة حالياً
+            const overlay = document.getElementById('privateAlertOverlay');
+            const body = document.getElementById('privateAlertText');
+            body.innerHTML = `🎯 <strong>قام اللاعب @${sender} بنكزك للعب الآن!</strong><br><br>تأهب للإجابة والتفاعل السريع بساحة الدردشة! ⚔️`;
+            overlay.style.display = 'flex';
+        }
+    });
+
+    // ========== استقبال حدث إطلاق الحلبة البصرية للنزالات وتوليد ممر البث ==========
+    socket.on('startVisualArena', (data) => {
+        const { domainUrl, challenger, opponent } = data;
+        const overlay = document.getElementById('visualArenaOverlay');
+        const container = document.getElementById('visualArenaFrameContainer');
+        
+        // 1. تنظيف أي بقايا سابقة لمنع تسريب الذاكرة والتعليق بالهاتف
+        container.innerHTML = "";
+        
+        // 2. توليد عنصر Iframe جديد من الصفر برمجياً لحجز معالج الرام المحلي
+        const iframe = document.createElement('iframe');
+        iframe.src = `${domainUrl}?challenger=${encodeURIComponent(challenger)}&opponent=${encodeURIComponent(opponent)}&me=${encodeURIComponent(currentUsername)}`;
+        iframe.id = "activeArenaIframe";
+        
+        container.appendChild(iframe);
+        
+        // 3. فتح وعرض الحلبة بصرية كامل الشاشة وتفعيل فوكس تلقائي للإجابة
+        overlay.style.display = 'flex';
+        document.getElementById('arenaChatInput').focus();
+        
+        // تشغيل صوت تنبيه رنين خفيف للإيذان ببدء المعركة
+        playNudgeSound();
+    });
+
+    // ========== استقبال حدث الإيقاف والتدمير الكلي للحلبة البصرية والعودة الآمنة للشات ==========
+    socket.on('stopVisualArena', () => {
+        const overlay = document.getElementById('visualArenaOverlay');
+        const container = document.getElementById('visualArenaFrameContainer');
+        
+        // 1. التدمير الكلي لـ Iframe النزال فوراً لتطهير رامات هاتف أندرويد/آيفون 
+        const iframe = document.getElementById('activeArenaIframe');
+        if (iframe) {
+            iframe.src = "about:blank"; // تصفير الممرات الداخلية للمتصفح أولاً
+            iframe.remove();
+        }
+        container.innerHTML = "";
+        
+        // 2. إغلاق الحاوية وإعادة اللاعب لغرفة الشات العامة بسرعة الصفر مللي ثانية
+        overlay.style.display = 'none';
+        document.getElementById('arenaChatInput').value = "";
+        document.getElementById('chatInput').focus();
+    });
+
+    // ========== استقبال أحداث تفعيل وتحديث مجالات الأسئلة لتغذية ممر البث الـ Iframe محلياً ==========
+    socket.on('updateArenaState', (data) => {
+        const iframe = document.getElementById('activeArenaIframe');
+        if (iframe && iframe.contentWindow) {
+            // تمرير البيانات محلياً وبسرعة البرق عبر البورت الداخلي للمتصفح دون استهلاك إنترنت
+            iframe.contentWindow.postMessage({ type: 'ARENA_UPDATE', state: data }, '*');
+        }
+    });
+
+    // إرسال الإجابة بداخل الحلبة البصرية (تستعمل نفس السوكت الآمن لضمان عدم حدوث desync)
+    function sendArenaMessage() {
+        const input = document.getElementById('arenaChatInput');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        socket.emit('sendMessage', { text: text });
+        input.value = "";
+    }
+
+    function handleArenaKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendArenaMessage();
+        }
+    }
+
+    // الاستماع لحدث التنبيهات المخصص وعرض كرت التنبيهات المنبثق
+    socket.on('privateNotification', (data) => {
+        const overlay = document.getElementById('privateAlertOverlay');
+        const body = document.getElementById('privateAlertText');
+        body.innerHTML = formatAsteriskToBold(data.text.replace(/\n/g, '<br>'));
+        overlay.style.display = 'flex';
+    });
+
+    function closePrivateAlert() {
+        document.getElementById('privateAlertOverlay').style.display = 'none';
+    }
+
+    socket.on('forceKick', (message) => {
+        localStorage.removeItem('player_username');
+        localStorage.removeItem('player_passcode');
+        alert(message);
+        location.reload();
+    });
+
+    // ==========================================
+    // ميكانيكيات وسلوك استدعاء المساعد الفوقي والتحقق من الهوية مع معالجة مرونة السحب الكلي بالهاتف
+    // ==========================================
+
+    let countdownTimerInterval = null;
+
+    // 1. فتح نافذة التحقق المنبثقة التفاعلية قسرياً للجميع وتعطيل الواجهة الخلفية
+    socket.on('showVerificationPopup', (data) => {
+        currentInfectedUser = data.targetUser;
+        verificationAttempts = 0; // تصفير العداد للمحاولة الجديدة
+
+        const overlay = document.getElementById('adminVerificationOverlay');
+        const errDiv = document.getElementById('lblVerifyError');
+        const introText = document.getElementById('lblVerificationIntro');
+        const pnlAttempts = document.getElementById('pnlAttempts');
+        const pnlSuccess = document.getElementById('pnlSuccessCountdown');
+        const passInput = document.getElementById('adminPassInput');
+
+        // إعادة ضبط الحالات لتبدو نظيفة ومستقرة
+        errDiv.style.display = 'none';
+        errDiv.innerText = '';
+        passInput.value = '';
+        pnlAttempts.style.display = 'block';
+        pnlSuccess.style.display = 'none';
+
+        introText.innerHTML = `مرحباً بك أيها المدير العظيم! أعتذر عن ظهوري المفاجئ هذا، ولكنك أطلقت أمر استدعائي؛ من أجل التحقق من هوية المدير الحقيقي للساحة ومنع انتحال اسمك. يرجى إدخال كلمة السر لفتح الدردشة. <br><br> <span style="color: var(--text-muted); font-size: 11px;">تنبيه: إذا كنت لست المطور الفعلي للساحة وتريد فك الحظر السريع، اضغط على زر "لست أنا المطور" بالأسفل لبدء التصويت الجماعي.</span>`;
+
+        // فتح المودال السلس وعرض لوح التغطية بمرونة كاملة بالهاتف
+        overlay.style.display = 'flex';
+    });
+
+    // 2. [مطور ومصحح أمنياً كلياً] التحقق من كلمة مرور المطور عبر السيرفر بالخلفية
+    function verifyAdminPasscode() {
+        const passInput = document.getElementById('adminPassInput');
+        const passcode = passInput.value.trim();
+        
+        // إرسال كود التحقق للسيرفر للمطابقة الآمنة بالخلفية دون تسريب الرمز بالمتصفح
+        socket.emit('verifyDeveloperPasscode', { passcode: passcode });
+    }
+
+    // استقبال نتائج مطابقة كلمة المرور الإدارية من السيرفر وعرض الردود المقابلة تزامناً
+    socket.on('verifyDeveloperPasscodeResponse', (data) => {
+        const errDiv = document.getElementById('lblVerifyError');
+        const passInput = document.getElementById('adminPassInput');
+
+        if (data.success) {
+            // [صواب] نجاح التحقق بالكامل وإرسال إشعار السيرفر
+            socket.emit('developerAuthenticatedSuccess', { username: currentUsername });
+        } else {
+            // [خطأ] تتبع المحاولات بالتصنيف الكوميدي
+            verificationAttempts++;
+            errDiv.style.display = 'block';
+            passInput.value = '';
+
+            if (verificationAttempts === 1) {
+                errDiv.innerText = "❌ آه يا ساقط، حاول مرة ثانية! 🍎";
+            } else if (verificationAttempts === 2) {
+                errDiv.innerText = "❌ لا تزال خاطئة! إن كنت لست المطور، اضغط على زر لست المطور بالأسفل لإنهاء الحظر قبل أن أمسح كرامتك بالمحاولة القادمة! 😤";
+            } else {
+                // الفشل التام بالمحاولة الثالثة: طرد قسري للاعب وكتم صوته بالشات
+                errDiv.innerText = "❌ لقد أغلقت المحاولات تماماً! تم بهدلتك وإقفال الدردشة عنك كلياً بطلب من المساعد! 🔒";
+                document.getElementById('pnlAttempts').style.display = 'none';
+                
+                setTimeout(() => {
+                    document.getElementById('adminVerificationOverlay').style.display = 'none';
+                    disableChatForCurrentUser(); // كتم صوت وحظر الشات للاعب محلياً
+                    socket.emit('developerAuthenticatedFailed', { username: currentUsername });
+                }, 4000);
+            }
+        }
+    });
+
+    // 3. كتم الشات وصندوق الرسائل للاعب الخاطئ محلياً
+    function disableChatForCurrentUser() {
+        const chatInput = document.getElementById('chatInput');
+        const btnSend = document.getElementById('btnSendMessage');
+        chatInput.disabled = true;
+        btnSend.disabled = true;
+        chatInput.placeholder = "🔒 لقد تم حظرك وكتم صوتك من المساعد لتطفلك على الرمز السري الإداري!";
+    }
+
+    // 4. فك كتم الشات وصندوق الرسائل وإرجاعه للوضع الطبيعي
+    function enableChatForCurrentUser() {
+        const chatInput = document.getElementById('chatInput');
+        const btnSend = document.getElementById('btnSendMessage');
+        chatInput.disabled = false;
+        btnSend.disabled = false;
+        chatInput.placeholder = "اكتب إجابتك أو أوامرك هنا...";
+    }
+
+    // 5. زر الاعتراف والانسحاب "لست المطور" وبث التصويت الجماعي
+    function notDeveloperAction() {
+        document.getElementById('adminVerificationOverlay').style.display = 'none';
+        socket.emit('notDeveloperActionTrigger', { username: currentUsername });
+    }
+
+    // 6. استقبال حدث فتح تصويت طوارئ غياب المطور لجميع اللاعبين
+    socket.on('showDevAbsentConfirmPopup', () => {
+        // فك حظر وإغلاق شاشة التحقق للجميع لفتح لوحة التصويت السلسة بـ Div
+        document.getElementById('adminVerificationOverlay').style.display = 'none';
+        document.getElementById('devAbsentConfirmOverlay').style.display = 'flex';
+    });
+
+    // الموافقة على التصويت بأن المطور غائب لإرجاع الشات للوضع الطبيعي
+    function agreeDevAbsent() {
+        document.getElementById('devAbsentConfirmOverlay').style.display = 'none';
+        socket.emit('devAbsentConfirmedByPlayer', { username: currentUsername });
+    }
+
+    // إغلاق شاشات تصويت الغياب بالقوة
+    socket.on('closeDevAbsentConfirmPopup', () => {
+        document.getElementById('devAbsentConfirmOverlay').style.display = 'none';
+    });
+
+    // 7. استقبال إشارة نجاح المصادقة للمطور وبدء العداد التنازلي المضحك لـ 5 ثوانٍ
+    socket.on('developerAuthenticatedSuccessBroadcast', (data) => {
+        const { verifiedUser, isMe } = data;
+        const overlay = document.getElementById('adminVerificationOverlay');
+        const pnlAttempts = document.getElementById('pnlAttempts');
+        const pnlSuccess = document.getElementById('pnlSuccessCountdown');
+        const lblCountdown = document.getElementById('lblCountdownTimer');
+        const lblSuccessMessage = document.getElementById('lblSuccessMessage');
+
+        // فك قفل الشات بالكامل للمطور الحقيقي تلقائياً لو تم حظره سابقاً
+        if (isMe) {
+            enableChatForCurrentUser();
+        }
+
+        // إخفاء لوحة الإدخال وإظهار لوحة العداد التنازلي التفاعلي المضحك للجميع
+        pnlAttempts.style.display = 'none';
+        pnlSuccess.style.display = 'block';
+        
+        // التأكد من أن المودال مفتوح للجميع بسلاسة
+        overlay.style.display = 'flex';
+
+        lblSuccessMessage.innerHTML = `لقد نجح المطور الحقيقي @${verifiedUser} بفتح كلمة المرور بنجاح تام ليفك الشفرة!<br><br>لقد لحق المطور بفتح كلمة المرور قبل أن أقوم ببهدلتك ومسح كرامتك يا مستر <strong>${currentInfectedUser}</strong>! 🤣`;
+
+        let timeLeft = 5;
+        lblCountdown.innerText = timeLeft;
+
+        if (countdownTimerInterval) clearInterval(countdownTimerInterval);
+        countdownTimerInterval = setInterval(() => {
+            timeLeft--;
+            lblCountdown.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(countdownTimerInterval);
+                overlay.style.display = 'none'; // إغلاق المودال من الشاشة للجميع والبدء في وضع حديث المطور الخاص
+            }
+        }, 1000);
+    });
+
+    // 8. أحداث قفل وفتح صندوق الدردشة والبينر العلوي العائم لساحة حديث المطور والمساعد الحصري
+    socket.on('lockChatForNonDevelopers', () => {
+        document.getElementById('devModeBanner').style.display = 'block';
+        
+        // قفل صندوق الإرسال فقط لغير المطورين
+        const isDeveloper = ["أيهم", "أدمن", "مشرف"].some(u => u.toLowerCase() === currentUsername.toLowerCase());
+        if (!isDeveloper) {
+            const chatInput = document.getElementById('chatInput');
+            const btnSend = document.getElementById('btnSendMessage');
+            chatInput.disabled = true;
+            btnSend.disabled = true;
+            chatInput.placeholder = "🔒 الدردشة مغلقة مؤقتاً لتواصل المطور مع المساعد بقلب الصفحة...";
+        }
+    });
+
+    socket.on('unlockChatForAll', () => {
+        document.getElementById('devModeBanner').style.display = 'none';
+        enableChatForCurrentUser(); // إرجاع فك القفل وصندوق الإرسال للجميع كالمعتاد بانتظام
+    });
+
+    // ==========================================
+    // ميكانيكيات تشغيل عداد فعاليات وتحديات السرعة التنازلي (10 ثوانٍ)
+    // ==========================================
+
+    let speedChallengeInterval = null;
+
+    socket.on('startSpeedChallengeTimer', () => {
+        const timerBadge = document.getElementById('speedChallengeTimer');
+        const lblCountdown = document.getElementById('lblSpeedCountdown');
+        timerBadge.style.display = 'flex';
+
+        let timeLeft = 10;
+        lblCountdown.innerText = timeLeft;
+
+        if (speedChallengeInterval) clearInterval(speedChallengeInterval);
+        speedChallengeInterval = setInterval(() => {
+            timeLeft--;
+            lblCountdown.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(speedChallengeInterval);
+                timerBadge.style.display = 'none';
+                
+                // [مطور ومصحح] نرسل حدث انتهاء مؤقت السرعة للسيرفر بدلاً من محاولة استدعاء دالة السيرفر محلياً لتفادي الانهيار
+                socket.emit('speedChallengeTimerExpired');
+            }
+        }, 1000);
+    });
+
+    socket.on('stopSpeedChallengeTimer', () => {
+        clearInterval(speedChallengeInterval);
+        document.getElementById('speedChallengeTimer').style.display = 'none';
+    });
+</script>
+</body>
+</html>

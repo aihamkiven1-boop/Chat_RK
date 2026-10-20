@@ -1,0 +1,23 @@
+// Refactored and Secured by Aiham
+// utils/normalizeArabic.js - دالة تطهير وتطبيع النصوص العربية لضمان دقة المقارنة
+function normalizeArabic(text) {
+    if (!text) return "";
+    return text
+        .toString()
+        .trim()
+        .toLowerCase()
+        // 1. إزالة التشكيل بالكامل
+        .replace(/[\u064B-\u0652]/g, "")
+        // 2. توحيد همزات الألف إلى ألف عادية
+        .replace(/[أإآ]/g, "ا")
+        // 3. توحيد التاء المربوطة والهاء إلى هاء
+        .replace(/[ةه]/g, "ه")
+        // 4. توحيد الألف المقصورة والياء إلى ياء
+        .replace(/[ىي]/g, "ي")
+        // 5. إزالة الرموز وعلامات الترقيم والمسافات الزائدة
+        .replace(/[^\u0621-\u064A\u0660-\u0669a-zA-Z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+module.exports = { normalizeArabic };
